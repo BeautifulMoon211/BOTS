@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LinkCopier Test Page</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    .container {
+      background: rgba(255, 255, 255, 0.95);
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+      color: #333;
+    }
+    h1 {
+      color: #4285f4;
+      margin-top: 0;
+      text-align: center;
+    }
+    .test-section {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+      border-left: 4px solid #4285f4;
+    }
+    .test-section h2 {
+      margin-top: 0;
+      color: #1967d2;
+      font-size: 20px;
+    }
+    .instruction {
+      background: #e7f3ff;
+      padding: 15px;
+      border-radius: 6px;
+      margin: 15px 0;
+    }
+    .instruction strong {
+      color: #1967d2;
+    }
+    .key {
+      display: inline-block;
+      background: #4285f4;
+      color: white;
+      padding: 5px 15px;
+      border-radius: 4px;
+      font-weight: bold;
+      font-family: 'Courier New', monospace;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    .success {
+      background: #d4edda;
+      color: #155724;
+      padding: 15px;
+      border-radius: 6px;
+      border: 1px solid #c3e6cb;
+      margin: 15px 0;
+    }
+    .test-urls {
+      list-style: none;
+      padding: 0;
+    }
+    .test-urls li {
+      background: white;
+      padding: 12px;
+      margin: 8px 0;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+    }
+    .test-urls a {
+      color: #4285f4;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .test-urls a:hover {
+      text-decoration: underline;
+    }
+    .current-url {
+      background: #fff3cd;
+      padding: 15px;
+      border-radius: 6px;
+      margin: 15px 0;
+      border: 1px solid #ffc107;
+      word-break: break-all;
+    }
+    .current-url strong {
+      color: #856404;
+    }
+    button {
+      background: #4285f4;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 500;
+      margin: 10px 5px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    button:hover {
+      background: #3367d6;
+    }
+    button:active {
+      transform: translateY(1px);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔗 LinkCopier Test Page</h1>
+    
+    <div class="test-section">
+      <h2>📋 How to Test</h2>
+      <div class="instruction">
+        <strong>Step 1:</strong> Make sure the LinkCopier extension is installed and loaded
+      </div>
+      <div class="instruction">
+        <strong>Step 2:</strong> Press the <span class="key">F9</span> key on this page
+      </div>
+      <div class="instruction">
+        <strong>Step 3:</strong> Check your Google Sheet - this page's URL should be added!
+      </div>
+    </div>
+
+    <div class="current-url">
+      <strong>Current URL:</strong><br>
+      <code id="currentUrl"></code>
+    </div>
+
+    <div class="test-section">
+      <h2>🧪 Test Different URLs</h2>
+      <p>Navigate to these pages and press <span class="key">F9</span> on each to test:</p>
+      <ul class="test-urls">
+        <li><a href="https://www.google.com" target="_blank">Google.com</a></li>
+        <li><a href="https://www.github.com" target="_blank">GitHub.com</a></li>
+        <li><a href="https://www.wikipedia.org" target="_blank">Wikipedia.org</a></li>
+        <li><a href="https://www.youtube.com" target="_blank">YouTube.com</a></li>
+        <li><a href="https://www.stackoverflow.com" target="_blank">StackOverflow.com</a></li>
+      </ul>
+    </div>
+
+    <div class="test-section">
+      <h2>✅ Expected Results</h2>
+      <div class="success">
+        <strong>✓</strong> A notification appears: "URL #X added to sheet successfully!"<br>
+        <strong>✓</strong> The URL appears in your Google Sheet<br>
+        <strong>✓</strong> The row has an auto-incremented number<br>
+        <strong>✓</strong> The Status column has a dropdown (Yes/No)<br>
+        <strong>✓</strong> The Status defaults to "No" with red background<br>
+        <strong>✓</strong> All cells are centered
+      </div>
+    </div>
+
+    <div style="text-align: center; margin-top: 30px;">
+      <button onclick="window.open('https://docs.google.com/spreadsheets/d/1p7n7mjurMZWstJKEeQw7gMici6VOOdlScVB6Jav0HVM', '_blank')">
+        📊 Open Default Google Sheet
+      </button>
+      <button onclick="chrome.runtime.sendMessage({action: 'openOptions'})">
+        ⚙️ Open Extension Settings
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // Display current URL
+    document.getElementById('currentUrl').textContent = window.location.href;
+    
+    // Listen for F9 key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'F9') {
+        console.log('F9 pressed! Extension should capture this.');
+      }
+    });
+  </script>
+</body>
+</html>
+
