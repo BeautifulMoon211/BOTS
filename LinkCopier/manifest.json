@@ -27,7 +27,8 @@
   "commands": {
     "copy-url-to-sheet": {
       "suggested_key": {
-        "default": "F9"
+        "default": "Ctrl+Shift+U",
+        "mac": "Command+Shift+U"
       },
       "description": "Copy current URL to Google Sheet"
     }

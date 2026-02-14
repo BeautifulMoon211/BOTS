@@ -64,10 +64,24 @@
 
 ---
 
-## Step 4: Test It! (1 minute)
+## Step 4: Set F9 Shortcut (30 seconds)
+
+1. Navigate to `chrome://extensions/shortcuts`
+2. Find **LinkCopier**
+3. Click the **pencil icon** next to "Copy current URL to Google Sheet"
+4. Press **F9** on your keyboard
+5. ✅ F9 is now set!
+
+**Note:** Chrome doesn't allow F9 to be pre-configured in the manifest, so you need to set it manually once. See **F9-SETUP.md** for details.
+
+**Alternative:** Use the default shortcut `Ctrl+Shift+U` without any setup.
+
+---
+
+## Step 5: Test It! (1 minute)
 
 1. Navigate to **any webpage** (e.g., google.com)
-2. Press **F9** on your keyboard
+2. Press **F9** (or `Ctrl+Shift+U`) on your keyboard
 3. Click **Allow** when prompted for permissions
 4. You should see: **"URL #1 added to sheet successfully!"**
 5. Open the [default Google Sheet](https://docs.google.com/spreadsheets/d/1p7n7mjurMZWstJKEeQw7gMici6VOOdlScVB6Jav0HVM)

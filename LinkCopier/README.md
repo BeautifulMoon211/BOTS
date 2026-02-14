@@ -1,8 +1,8 @@
 # 🔗 LinkCopier - Real-time URL to Google Sheets
 
-> **Press F9 to instantly copy any URL to your Google Sheet!**
+> **Press Ctrl+Shift+U (or F9 after setup) to instantly copy any URL to your Google Sheet!**
 
-A Chrome extension that automatically copies the current tab's URL to a Google Sheet when you press F9. Features auto-numbering, status tracking with color-coded dropdowns, and real-time synchronization.
+A Chrome extension that automatically copies the current tab's URL to a Google Sheet with a keyboard shortcut. Features auto-numbering, status tracking with color-coded dropdowns, and real-time synchronization.
 
 [![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-4285f4?logo=google-chrome&logoColor=white)](chrome://extensions/)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-34a853)](manifest.json)
