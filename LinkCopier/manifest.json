@@ -26,10 +26,10 @@
   "commands": {
     "copy-url-to-sheet": {
       "suggested_key": {
-        "default": "Ctrl+Shift+U",
-        "mac": "Command+Shift+U"
+        "default": "Ctrl+Q",
+        "mac": "Command+Q"
       },
-      "description": "Copy current URL to Google Sheet"
+      "description": "Copy current URL to Supabase database"
     }
   },
   "options_page": "options.html",
