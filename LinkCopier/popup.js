@@ -32,9 +32,15 @@ document.getElementById('exportUncopied').addEventListener('click', async () => 
 
     chrome.runtime.sendMessage(
       { action: 'exportUncopied' },
-      (response) => {
+      async (response) => {
         if (response && response.success) {
-          showStatus(`✓ ${response.count} rows copied to clipboard!`, 'success');
+          // Copy to clipboard in popup context (where navigator.clipboard works)
+          try {
+            await navigator.clipboard.writeText(response.data);
+            showStatus(`✓ ${response.count} rows copied to clipboard!`, 'success');
+          } catch (clipboardError) {
+            showStatus(`✗ Clipboard error: ${clipboardError.message}`, 'error');
+          }
         } else {
           showStatus(`✗ Error: ${response?.error || 'Unknown error'}`, 'error');
         }

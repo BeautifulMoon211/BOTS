@@ -181,9 +181,6 @@ async function exportUncopiedRows() {
     // Format data as TSV (Tab-Separated Values) for easy paste into Google Sheets
     const tsvData = rows.map(row => `${row.number}\t${row.url}\t${row.status}`).join('\n');
 
-    // Copy to clipboard
-    await navigator.clipboard.writeText(tsvData);
-
     // Update all these rows to copied = 'Yes'
     const ids = rows.map(row => row.id);
     const updateResponse = await fetch(
@@ -208,7 +205,7 @@ async function exportUncopiedRows() {
 
     console.log(`Successfully exported ${rows.length} rows and marked as copied`);
 
-    return { success: true, count: rows.length };
+    return { success: true, count: rows.length, data: tsvData };
   } catch (error) {
     console.error('Error exporting rows:', error);
     return { success: false, error: error.message };
