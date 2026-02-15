@@ -180,8 +180,23 @@ async function exportUncopiedRows() {
     // Format data as TSV (Tab-Separated Values) for easy paste into Google Sheets
     const tsvData = rows.map(row => `${row.number}\t${row.url}`).join('\n');
 
-    // Update all these rows to copied = 'Yes'
+    // Return data with IDs for later update (after successful clipboard copy)
     const ids = rows.map(row => row.id);
+
+    console.log(`Fetched ${rows.length} uncopied rows`);
+
+    return { success: true, count: rows.length, data: tsvData, ids: ids };
+  } catch (error) {
+    console.error('Error exporting rows:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Mark rows as copied in database
+async function markRowsAsCopied(ids) {
+  try {
+    const config = await loadSupabaseConfig();
+
     const updateResponse = await fetch(
       `${config.url}/rest/v1/urls?id=in.(${ids.join(',')})`,
       {
@@ -202,11 +217,10 @@ async function exportUncopiedRows() {
       throw new Error(`Failed to update rows: ${updateResponse.statusText} - ${error}`);
     }
 
-    console.log(`Successfully exported ${rows.length} rows and marked as copied`);
-
-    return { success: true, count: rows.length, data: tsvData };
+    console.log(`Successfully marked ${ids.length} rows as copied`);
+    return { success: true };
   } catch (error) {
-    console.error('Error exporting rows:', error);
+    console.error('Error marking rows as copied:', error);
     return { success: false, error: error.message };
   }
 }
@@ -396,38 +410,49 @@ chrome.commands.onCommand.addListener(async (command) => {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
         if (tab && tab.id) {
-          // Send data to content script to copy to clipboard
-          chrome.tabs.sendMessage(
-            tab.id,
-            { action: 'copyToClipboard', data: result.data },
-            (response) => {
-              if (response && response.success) {
-                // Show success notification
-                chrome.notifications.create({
-                  type: 'basic',
-                  iconUrl: 'icon.png',
-                  title: '✓ Export Success',
-                  message: `${result.count} rows copied to clipboard!`,
-                  priority: 2
-                });
+          try {
+            // Send data to content script to copy to clipboard
+            const response = await chrome.tabs.sendMessage(
+              tab.id,
+              { action: 'copyToClipboard', data: result.data }
+            );
 
-                // Update badge
-                updateBadge('✓', '#4caf50');
-              } else {
-                // Show error notification
-                chrome.notifications.create({
-                  type: 'basic',
-                  iconUrl: 'icon.png',
-                  title: '✗ Clipboard Error',
-                  message: 'Failed to copy to clipboard',
-                  priority: 2
-                });
+            if (response && response.success) {
+              // Clipboard copy succeeded - now mark rows as copied in database
+              await markRowsAsCopied(result.ids);
 
-                // Update badge
-                updateBadge('✗', '#f44336');
-              }
+              // Show success notification
+              chrome.notifications.create({
+                type: 'basic',
+                iconUrl: 'icon.png',
+                title: '✓ Export Success',
+                message: `${result.count} rows copied to clipboard!`,
+                priority: 2
+              });
+
+              // Update badge
+              updateBadge('✓', '#4caf50');
+            } else {
+              // Clipboard copy failed - don't update database
+              throw new Error('Content script failed to copy');
             }
-          );
+          } catch (clipboardError) {
+            console.error('Clipboard error:', clipboardError);
+
+            // Show error notification with helpful message
+            chrome.notifications.create({
+              type: 'basic',
+              iconUrl: 'icon.png',
+              title: '✗ Clipboard Error',
+              message: 'Failed to copy to clipboard. Make sure you are on a regular webpage (not chrome:// page).',
+              priority: 2
+            });
+
+            // Update badge
+            updateBadge('✗', '#f44336');
+          }
+        } else {
+          throw new Error('No active tab found');
         }
       } else {
         // Show error notification
@@ -453,6 +478,9 @@ chrome.commands.onCommand.addListener(async (command) => {
         message: `Error: ${error.message}`,
         priority: 2
       });
+
+      // Update badge
+      updateBadge('✗', '#f44336');
     }
   }
 });
@@ -475,6 +503,13 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
 
   if (request.action === 'exportUncopied') {
     exportUncopiedRows().then(result => {
+      sendResponse(result);
+    });
+    return true;
+  }
+
+  if (request.action === 'markAsCopied') {
+    markRowsAsCopied(request.ids).then(result => {
       sendResponse(result);
     });
     return true;

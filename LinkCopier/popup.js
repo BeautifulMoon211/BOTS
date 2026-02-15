@@ -37,8 +37,20 @@ document.getElementById('exportUncopied').addEventListener('click', async () => 
           // Copy to clipboard in popup context (where navigator.clipboard works)
           try {
             await navigator.clipboard.writeText(response.data);
-            showStatus(`✓ ${response.count} rows copied to clipboard!`, 'success');
+
+            // Clipboard copy succeeded - now mark rows as copied in database
+            chrome.runtime.sendMessage(
+              { action: 'markAsCopied', ids: response.ids },
+              (markResponse) => {
+                if (markResponse && markResponse.success) {
+                  showStatus(`✓ ${response.count} rows copied to clipboard!`, 'success');
+                } else {
+                  showStatus(`✓ Copied to clipboard, but failed to update database`, 'warning');
+                }
+              }
+            );
           } catch (clipboardError) {
+            // Clipboard copy failed - don't update database
             showStatus(`✗ Clipboard error: ${clipboardError.message}`, 'error');
           }
         } else {

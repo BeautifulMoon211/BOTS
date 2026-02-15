@@ -28,6 +28,12 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
 // This method doesn't trigger permission prompts
 function copyToClipboardFallback(text) {
   try {
+    // Check if document.body exists
+    if (!document.body) {
+      console.error('document.body is not available yet');
+      return false;
+    }
+
     const textarea = document.createElement('textarea');
     textarea.value = text;
     textarea.style.position = 'fixed';
@@ -52,7 +58,7 @@ function copyToClipboardFallback(text) {
       console.log('Successfully copied using execCommand method');
       return true;
     } else {
-      console.error('execCommand copy method failed');
+      console.error('execCommand copy method failed - command returned false');
       return false;
     }
   } catch (error) {
