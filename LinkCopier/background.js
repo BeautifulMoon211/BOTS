@@ -124,7 +124,6 @@ async function addUrlToDatabase(url) {
         body: JSON.stringify({
           number: nextNumber,
           url: url,
-          status: 'No',
           copied: 'No'
         })
       }
@@ -157,7 +156,7 @@ async function exportUncopiedRows() {
 
     // Get all rows where copied = 'No'
     const response = await fetch(
-      `${config.url}/rest/v1/urls?copied=eq.No&select=id,number,url,status&order=number.asc`,
+      `${config.url}/rest/v1/urls?copied=eq.No&select=id,number,url&order=number.asc`,
       {
         headers: {
           'apikey': config.key,
@@ -179,7 +178,7 @@ async function exportUncopiedRows() {
     }
 
     // Format data as TSV (Tab-Separated Values) for easy paste into Google Sheets
-    const tsvData = rows.map(row => `${row.number}\t${row.url}\t${row.status}`).join('\n');
+    const tsvData = rows.map(row => `${row.number}\t${row.url}`).join('\n');
 
     // Update all these rows to copied = 'Yes'
     const ids = rows.map(row => row.id);
@@ -382,6 +381,75 @@ chrome.commands.onCommand.addListener(async (command) => {
         type: 'basic',
         iconUrl: 'icon.png',
         title: '✗ LinkCopier Error',
+        message: `Error: ${error.message}`,
+        priority: 2
+      });
+    }
+  }
+
+  if (command === 'export-to-clipboard') {
+    try {
+      const result = await exportUncopiedRows();
+
+      if (result.success) {
+        // Get active tab to send clipboard data
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+        if (tab && tab.id) {
+          // Send data to content script to copy to clipboard
+          chrome.tabs.sendMessage(
+            tab.id,
+            { action: 'copyToClipboard', data: result.data },
+            (response) => {
+              if (response && response.success) {
+                // Show success notification
+                chrome.notifications.create({
+                  type: 'basic',
+                  iconUrl: 'icon.png',
+                  title: '✓ Export Success',
+                  message: `${result.count} rows copied to clipboard!`,
+                  priority: 2
+                });
+
+                // Update badge
+                updateBadge('✓', '#4caf50');
+              } else {
+                // Show error notification
+                chrome.notifications.create({
+                  type: 'basic',
+                  iconUrl: 'icon.png',
+                  title: '✗ Clipboard Error',
+                  message: 'Failed to copy to clipboard',
+                  priority: 2
+                });
+
+                // Update badge
+                updateBadge('✗', '#f44336');
+              }
+            }
+          );
+        }
+      } else {
+        // Show error notification
+        chrome.notifications.create({
+          type: 'basic',
+          iconUrl: 'icon.png',
+          title: '✗ Export Error',
+          message: `Failed: ${result.error}`,
+          priority: 2
+        });
+
+        // Update badge
+        updateBadge('✗', '#f44336');
+      }
+    } catch (error) {
+      console.error('Error in export command handler:', error);
+
+      // Show error notification
+      chrome.notifications.create({
+        type: 'basic',
+        iconUrl: 'icon.png',
+        title: '✗ Export Error',
         message: `Error: ${error.message}`,
         priority: 2
       });

@@ -57,7 +57,6 @@
 | `created_at` | timestamptz | now() | ❌ No | ✅ Yes |
 | `number` | int4 | (none) | ❌ No | ✅ Yes |
 | `url` | text | (none) | ❌ No | ✅ Yes |
-| `status` | text | 'No' | ❌ No | ✅ Yes |
 | `copied` | text | 'No' | ❌ No | ✅ Yes |
 
 5. Click **"Save"**
@@ -129,17 +128,16 @@
 
 Your `urls` table will look like this:
 
-| id | created_at | number | url | status | copied |
-|----|------------|--------|-----|--------|--------|
-| 1 | 2026-02-15 10:30:00 | 1 | https://google.com | No | No |
-| 2 | 2026-02-15 10:31:15 | 2 | https://github.com | No | Yes |
-| 3 | 2026-02-15 10:32:45 | 3 | https://reddit.com | Yes | No |
+| id | created_at | number | url | copied |
+|----|------------|--------|-----|--------|
+| 1 | 2026-02-15 10:30:00 | 1 | https://google.com | No |
+| 2 | 2026-02-15 10:31:15 | 2 | https://github.com | Yes |
+| 3 | 2026-02-15 10:32:45 | 3 | https://reddit.com | No |
 
 - **id:** Auto-increment primary key
 - **created_at:** Timestamp when URL was added
 - **number:** Sequential number (1, 2, 3...)
 - **url:** The webpage URL
-- **status:** "Yes" or "No" (you can edit in dashboard)
 - **copied:** "No" or "Yes" (tracks if exported to Google Sheets)
 
 ---
@@ -180,10 +178,10 @@ Your `urls` table will look like this:
 
 ## 💡 Pro Tips
 
-### Edit Status in Dashboard
+### Edit Copied Status in Dashboard
 1. Go to Supabase Table Editor
 2. Click on any row
-3. Change "No" to "Yes" in the status column
+3. Change "No" to "Yes" in the copied column to exclude from export
 4. Click outside to save
 
 ### Export Your Data

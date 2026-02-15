@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "LinkCopier - Real-time URL Tracker",
-  "version": "2.0.0",
-  "description": "Press F9 to copy current tab URL to Supabase database with auto-numbering and status tracking",
+  "version": "2.1.0",
+  "description": "Press Ctrl+Q to save URLs to Supabase. Press Ctrl+Shift+C to export to clipboard for Google Sheets",
   "permissions": [
     "tabs",
     "storage",
@@ -30,6 +30,13 @@
         "mac": "Command+Q"
       },
       "description": "Copy current URL to Supabase database"
+    },
+    "export-to-clipboard": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+C",
+        "mac": "Command+Shift+C"
+      },
+      "description": "Export uncopied URLs to clipboard"
     }
   },
   "options_page": "options.html",

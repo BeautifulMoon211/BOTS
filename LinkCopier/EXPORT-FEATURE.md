@@ -23,16 +23,21 @@ The LinkCopier extension now includes a one-click export feature that copies unc
 
 ### Step 1: Export Data
 
+**Option 1: Use Button**
 1. Click the LinkCopier extension icon
-2. Click **"📋 Export Uncopied to Clipboard"** button
+2. Click **"📋 Export to Sheets"** button
 3. Wait for confirmation: "✓ X rows copied to clipboard!"
+
+**Option 2: Use Keyboard Shortcut**
+1. Press **Ctrl+Shift+C** (or Cmd+Shift+C on Mac)
+2. Wait for notification: "✓ X rows copied to clipboard!"
 
 ### Step 2: Paste into Google Sheets
 
 1. Open your Google Sheet
 2. Click on cell A1 (or wherever you want to paste)
 3. Press **Ctrl+V** (or Cmd+V on Mac)
-4. Data appears in 3 columns: Number, URL, Status
+4. Data appears in 2 columns: Number, URL
 
 ### Step 3: Done!
 
@@ -48,24 +53,23 @@ The LinkCopier extension now includes a one-click export feature that copies unc
 
 The export creates data in this format:
 ```
-1	https://google.com	No
-2	https://github.com	Yes
-3	https://reddit.com	No
+1	https://google.com
+2	https://github.com
+3	https://reddit.com
 ```
 
 ### Google Sheets Result
 
 When pasted, it creates:
 
-| A | B | C |
-|---|---|---|
-| 1 | https://google.com | No |
-| 2 | https://github.com | Yes |
-| 3 | https://reddit.com | No |
+| A | B |
+|---|---|
+| 1 | https://google.com |
+| 2 | https://github.com |
+| 3 | https://reddit.com |
 
-**Column A:** Number  
-**Column B:** URL  
-**Column C:** Status  
+**Column A:** Number
+**Column B:** URL
 
 ---
 
@@ -93,43 +97,43 @@ Tracks which URLs have been exported to Google Sheets to prevent duplicates.
 ### Example 1: First Export
 
 **Database before export:**
-| number | url | status | copied |
-|--------|-----|--------|--------|
-| 1 | https://google.com | No | No |
-| 2 | https://github.com | No | No |
-| 3 | https://reddit.com | Yes | No |
+| number | url | copied |
+|--------|-----|--------|
+| 1 | https://google.com | No |
+| 2 | https://github.com | No |
+| 3 | https://reddit.com | No |
 
-**Click Export → Clipboard contains:**
+**Click Export (or press Ctrl+Shift+C) → Clipboard contains:**
 ```
-1	https://google.com	No
-2	https://github.com	No
-3	https://reddit.com	Yes
+1	https://google.com
+2	https://github.com
+3	https://reddit.com
 ```
 
 **Database after export:**
-| number | url | status | copied |
-|--------|-----|--------|--------|
-| 1 | https://google.com | No | **Yes** |
-| 2 | https://github.com | No | **Yes** |
-| 3 | https://reddit.com | Yes | **Yes** |
+| number | url | copied |
+|--------|-----|--------|
+| 1 | https://google.com | **Yes** |
+| 2 | https://github.com | **Yes** |
+| 3 | https://reddit.com | **Yes** |
 
 ### Example 2: Second Export (New URLs Only)
 
 **Add more URLs, then export again:**
 
 **Database before second export:**
-| number | url | status | copied |
-|--------|-----|--------|--------|
-| 1 | https://google.com | No | Yes |
-| 2 | https://github.com | No | Yes |
-| 3 | https://reddit.com | Yes | Yes |
-| 4 | https://stackoverflow.com | No | **No** |
-| 5 | https://youtube.com | No | **No** |
+| number | url | copied |
+|--------|-----|--------|
+| 1 | https://google.com | Yes |
+| 2 | https://github.com | Yes |
+| 3 | https://reddit.com | Yes |
+| 4 | https://stackoverflow.com | **No** |
+| 5 | https://youtube.com | **No** |
 
-**Click Export → Clipboard contains:**
+**Click Export (or press Ctrl+Shift+C) → Clipboard contains:**
 ```
-4	https://stackoverflow.com	No
-5	https://youtube.com	No
+4	https://stackoverflow.com
+5	https://youtube.com
 ```
 
 **Only new URLs exported!** ✨
