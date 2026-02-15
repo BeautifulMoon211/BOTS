@@ -124,7 +124,8 @@ async function addUrlToDatabase(url) {
         body: JSON.stringify({
           number: nextNumber,
           url: url,
-          status: 'No'
+          status: 'No',
+          copied: 'No'
         })
       }
     );
@@ -144,11 +145,81 @@ async function addUrlToDatabase(url) {
   }
 }
 
+// Export uncopied rows to clipboard
+async function exportUncopiedRows() {
+  try {
+    const configured = await isConfigured();
+    if (!configured) {
+      throw new Error('Supabase not configured. Please set up in Settings.');
+    }
+
+    const config = await loadSupabaseConfig();
+
+    // Get all rows where copied = 'No'
+    const response = await fetch(
+      `${config.url}/rest/v1/urls?copied=eq.No&select=id,number,url,status&order=number.asc`,
+      {
+        headers: {
+          'apikey': config.key,
+          'Authorization': `Bearer ${config.key}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Failed to fetch rows: ${response.statusText} - ${error}`);
+    }
+
+    const rows = await response.json();
+
+    if (rows.length === 0) {
+      return { success: false, error: 'No uncopied rows found', count: 0 };
+    }
+
+    // Format data as TSV (Tab-Separated Values) for easy paste into Google Sheets
+    const tsvData = rows.map(row => `${row.number}\t${row.url}\t${row.status}`).join('\n');
+
+    // Copy to clipboard
+    await navigator.clipboard.writeText(tsvData);
+
+    // Update all these rows to copied = 'Yes'
+    const ids = rows.map(row => row.id);
+    const updateResponse = await fetch(
+      `${config.url}/rest/v1/urls?id=in.(${ids.join(',')})`,
+      {
+        method: 'PATCH',
+        headers: {
+          'apikey': config.key,
+          'Authorization': `Bearer ${config.key}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          copied: 'Yes'
+        })
+      }
+    );
+
+    if (!updateResponse.ok) {
+      const error = await updateResponse.text();
+      throw new Error(`Failed to update rows: ${updateResponse.statusText} - ${error}`);
+    }
+
+    console.log(`Successfully exported ${rows.length} rows and marked as copied`);
+
+    return { success: true, count: rows.length };
+  } catch (error) {
+    console.error('Error exporting rows:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 // Test Supabase connection
 async function testConnection() {
   try {
     const config = await loadSupabaseConfig();
-    
+
     if (!config.url || !config.key) {
       throw new Error('Supabase URL and API Key are required');
     }
@@ -322,7 +393,7 @@ chrome.commands.onCommand.addListener(async (command) => {
 });
 
 // Handle messages from popup and options page
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   if (request.action === 'addUrl') {
     addUrlToDatabase(request.url).then(result => {
       sendResponse(result);
@@ -332,6 +403,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === 'testConnection') {
     testConnection().then(result => {
+      sendResponse(result);
+    });
+    return true;
+  }
+
+  if (request.action === 'exportUncopied') {
+    exportUncopiedRows().then(result => {
       sendResponse(result);
     });
     return true;

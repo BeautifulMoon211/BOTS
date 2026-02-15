@@ -58,6 +58,7 @@
 | `number` | int4 | (none) | ❌ No | ✅ Yes |
 | `url` | text | (none) | ❌ No | ✅ Yes |
 | `status` | text | 'No' | ❌ No | ✅ Yes |
+| `copied` | text | 'No' | ❌ No | ✅ Yes |
 
 5. Click **"Save"**
 6. ✅ Table created!
@@ -128,17 +129,18 @@
 
 Your `urls` table will look like this:
 
-| id | created_at | number | url | status |
-|----|------------|--------|-----|--------|
-| 1 | 2026-02-15 10:30:00 | 1 | https://google.com | No |
-| 2 | 2026-02-15 10:31:15 | 2 | https://github.com | No |
-| 3 | 2026-02-15 10:32:45 | 3 | https://reddit.com | Yes |
+| id | created_at | number | url | status | copied |
+|----|------------|--------|-----|--------|--------|
+| 1 | 2026-02-15 10:30:00 | 1 | https://google.com | No | No |
+| 2 | 2026-02-15 10:31:15 | 2 | https://github.com | No | Yes |
+| 3 | 2026-02-15 10:32:45 | 3 | https://reddit.com | Yes | No |
 
 - **id:** Auto-increment primary key
 - **created_at:** Timestamp when URL was added
 - **number:** Sequential number (1, 2, 3...)
 - **url:** The webpage URL
 - **status:** "Yes" or "No" (you can edit in dashboard)
+- **copied:** "No" or "Yes" (tracks if exported to Google Sheets)
 
 ---
 

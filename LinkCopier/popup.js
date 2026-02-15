@@ -25,6 +25,26 @@ document.getElementById('copyNow').addEventListener('click', async () => {
   }
 });
 
+// Export uncopied rows button
+document.getElementById('exportUncopied').addEventListener('click', async () => {
+  try {
+    showStatus('Exporting uncopied rows...', 'success');
+
+    chrome.runtime.sendMessage(
+      { action: 'exportUncopied' },
+      (response) => {
+        if (response && response.success) {
+          showStatus(`✓ ${response.count} rows copied to clipboard!`, 'success');
+        } else {
+          showStatus(`✗ Error: ${response?.error || 'Unknown error'}`, 'error');
+        }
+      }
+    );
+  } catch (error) {
+    showStatus(`✗ Error: ${error.message}`, 'error');
+  }
+});
+
 // Open settings button
 document.getElementById('openSettings').addEventListener('click', () => {
   chrome.runtime.openOptionsPage();
