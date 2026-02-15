@@ -24,20 +24,30 @@ BTN_ON = "QPushButton{background:#2d6d4a;border:1px solid #3d8d5a;border-radius:
 
 class CaptionDisplay(QTextEdit):
     """Caption display with click-to-mark feature."""
-    
+
     MAX_CHARS = 10000
-    
-    def __init__(self):
+
+    def __init__(self, font_size=13):
         super().__init__()
         self.setReadOnly(True)
         self.marked_word = None
         self.full_text = ""
-        self.setStyleSheet("QTextEdit{background:#fff;color:#000;border:none;font-size:13px;font-family:'Segoe UI';padding:10px}")
+        self.font_size = font_size
+        self._update_style()
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         # Use global override cursor when mouse enters
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
+
+    def set_font_size(self, size):
+        """Update font size."""
+        self.font_size = size
+        self._update_style()
+
+    def _update_style(self):
+        """Update stylesheet with current font size."""
+        self.setStyleSheet(f"QTextEdit{{background:#fff;color:#000;border:none;font-size:{self.font_size}px;font-family:'Segoe UI';padding:10px}}")
     
     def enterEvent(self, event):
         # Only set cursor if not already overridden to prevent stack corruption
@@ -125,7 +135,7 @@ class CaptionDisplay(QTextEdit):
 
 class StealthCaptionApp(QMainWindow):
     """Main application window."""
-    
+
     def __init__(self):
         super().__init__()
         self.screen_protection_enabled = False
@@ -134,7 +144,8 @@ class StealthCaptionApp(QMainWindow):
         self.caption_reader = LiveCaptionReader()
         self.last_caption = ""
         self.hwnd = None
-        
+        self.current_font_size = 13  # Default font size
+
         self._init_ui()
         # Fixed global hotkey: Ctrl+Shift+C
         try:
@@ -142,16 +153,17 @@ class StealthCaptionApp(QMainWindow):
         except Exception as e:
             print(f"Warning: Failed to register global hotkey Ctrl+Shift+C: {e}")
             self.hotkey_handle = None
-        
+
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._poll_captions)
         self.timer.start(100)
-        
+
         QTimer.singleShot(100, self._init_hwnd)
-    
+
     def _init_ui(self):
         self.setWindowTitle("Caption")
-        self.resize(500, 180)
+        self.resize(500, 300)  # Increased default height for better resizing
+        self.setMinimumSize(300, 150)  # Set minimum size
         self.setStyleSheet("QMainWindow{background:#0f0f1a}")
         
         central = QWidget()
@@ -184,11 +196,28 @@ class StealthCaptionApp(QMainWindow):
         for btn in [self.btn_protect, self.btn_taskbar, self.btn_top]:
             bar_layout.addWidget(btn)
         
+        # Font size controls
+        font_lbl = QLabel("A")
+        font_lbl.setStyleSheet("color:#a0a0c0;font-size:10px")
+        bar_layout.addWidget(font_lbl)
+
+        self.font_slider = QSlider(Qt.Orientation.Horizontal)
+        self.font_slider.setFixedWidth(60)
+        self.font_slider.setRange(8, 32)  # Font size range 8-32px
+        self.font_slider.setValue(13)  # Default font size
+        self.font_slider.setStyleSheet("QSlider::groove:horizontal{background:#2d2d4a;height:4px}QSlider::handle:horizontal{background:#6d6dac;width:10px;margin:-3px 0;border-radius:5px}")
+        self.font_slider.valueChanged.connect(self._change_font_size)
+        bar_layout.addWidget(self.font_slider)
+
+        self.font_size_label = QLabel("13")
+        self.font_size_label.setStyleSheet("color:#a0a0c0;font-size:10px;min-width:20px")
+        bar_layout.addWidget(self.font_size_label)
+
         # Opacity slider
         lbl = QLabel("🔆")
         lbl.setStyleSheet("color:#a0a0c0;font-size:10px")
         bar_layout.addWidget(lbl)
-        
+
         slider = QSlider(Qt.Orientation.Horizontal)
         slider.setFixedWidth(60)
         slider.setRange(30, 100)
@@ -196,10 +225,10 @@ class StealthCaptionApp(QMainWindow):
         slider.setStyleSheet("QSlider::groove:horizontal{background:#2d2d4a;height:4px}QSlider::handle:horizontal{background:#6d6dac;width:10px;margin:-3px 0;border-radius:5px}")
         slider.valueChanged.connect(lambda v: self._set_opacity(v))
         bar_layout.addWidget(slider)
-        
+
         layout.addWidget(bar)
-        
-        self.caption_display = CaptionDisplay()
+
+        self.caption_display = CaptionDisplay(font_size=self.current_font_size)
         layout.addWidget(self.caption_display)
     
     def _make_btn(self, text, callback):
@@ -280,6 +309,18 @@ class StealthCaptionApp(QMainWindow):
             self.setWindowOpacity(value / 100)
         except Exception as e:
             print(f"Error setting opacity: {e}")
+
+    def _change_font_size(self, size):
+        """Change caption display font size."""
+        try:
+            if size < 8 or size > 32:
+                print(f"Invalid font size: {size}")
+                return
+            self.current_font_size = size
+            self.caption_display.set_font_size(size)
+            self.font_size_label.setText(str(size))
+        except Exception as e:
+            print(f"Error changing font size: {e}")
     
     def copy_from_mark(self):
         try:
