@@ -194,7 +194,7 @@ class StealthCaptionApp(QMainWindow):
         slider.setRange(30, 100)
         slider.setValue(100)
         slider.setStyleSheet("QSlider::groove:horizontal{background:#2d2d4a;height:4px}QSlider::handle:horizontal{background:#6d6dac;width:10px;margin:-3px 0;border-radius:5px}")
-        slider.valueChanged.connect(lambda v: self.setWindowOpacity(v / 100))
+        slider.valueChanged.connect(lambda v: self._set_opacity(v))
         bar_layout.addWidget(slider)
         
         layout.addWidget(bar)
@@ -209,11 +209,17 @@ class StealthCaptionApp(QMainWindow):
         return btn
     
     def _init_hwnd(self):
-        self.hwnd = int(self.winId())
-        # Enable stealth by default
-        self.toggle_screen_protection()
-        self.toggle_taskbar_visibility()
-        self.toggle_always_on_top()
+        try:
+            self.hwnd = int(self.winId())
+            if not self.hwnd:
+                print("Warning: Failed to get valid HWND")
+                return
+            # Enable stealth by default
+            self.toggle_screen_protection()
+            self.toggle_taskbar_visibility()
+            self.toggle_always_on_top()
+        except Exception as e:
+            print(f"Error initializing HWND: {e}")
     
     def _on_global_copy(self):
         # Use QTimer to safely call from keyboard thread
@@ -221,12 +227,23 @@ class StealthCaptionApp(QMainWindow):
     
     def _copy_and_paste(self):
         """Copy marked text and paste to active window."""
-        text = self.caption_display.get_marked_text()
-        if text:
-            QApplication.clipboard().setText(text)
-            self._set_status("📋 Pasted!", "#a78bfa")
-            # Small delay then paste
-            QTimer.singleShot(50, lambda: keyboard.press_and_release('ctrl+v'))
+        try:
+            text = self.caption_display.get_marked_text()
+            if text:
+                QApplication.clipboard().setText(text)
+                self._set_status("📋 Pasted!", "#a78bfa")
+                # Small delay then paste
+                QTimer.singleShot(50, lambda: self._safe_paste())
+        except Exception as e:
+            print(f"Error in copy and paste: {e}")
+            self._set_status("❌ Copy failed", "#ef4444")
+
+    def _safe_paste(self):
+        """Safely execute paste operation."""
+        try:
+            keyboard.press_and_release('ctrl+v')
+        except Exception as e:
+            print(f"Error pasting: {e}")
     
     def _poll_captions(self):
         try:
@@ -248,54 +265,91 @@ class StealthCaptionApp(QMainWindow):
             self._set_status("❌ Error", "#ef4444")
     
     def _set_status(self, text, color):
-        self.status_label.setText(text)
-        self.status_label.setStyleSheet(f"color:{color};font-size:10px;padding:0 8px")
+        try:
+            self.status_label.setText(text)
+            self.status_label.setStyleSheet(f"color:{color};font-size:10px;padding:0 8px")
+        except Exception as e:
+            print(f"Error setting status: {e}")
+
+    def _set_opacity(self, value):
+        """Safely set window opacity."""
+        try:
+            if value < 0 or value > 100:
+                print(f"Invalid opacity value: {value}")
+                return
+            self.setWindowOpacity(value / 100)
+        except Exception as e:
+            print(f"Error setting opacity: {e}")
     
     def copy_from_mark(self):
-        text = self.caption_display.get_marked_text()
-        if text:
-            QApplication.clipboard().setText(text)
-            self._set_status("📋 Copied!", "#a78bfa")
+        try:
+            text = self.caption_display.get_marked_text()
+            if text:
+                QApplication.clipboard().setText(text)
+                self._set_status("📋 Copied!", "#a78bfa")
+        except Exception as e:
+            print(f"Error copying text: {e}")
+            self._set_status("❌ Copy failed", "#ef4444")
     
     def toggle_screen_protection(self):
-        if not self.hwnd:
-            self.hwnd = int(self.winId())
-        self.screen_protection_enabled = not self.screen_protection_enabled
-        if self.screen_protection_enabled:
-            enable_screen_protection(self.hwnd)
-            self.btn_protect.setText("🛡️ ON")
-            self.btn_protect.setStyleSheet(BTN_ON)
-        else:
-            disable_screen_protection(self.hwnd)
-            self.btn_protect.setText("🛡️ OFF")
-            self.btn_protect.setStyleSheet(BTN_OFF)
+        try:
+            if not self.hwnd:
+                self.hwnd = int(self.winId())
+            self.screen_protection_enabled = not self.screen_protection_enabled
+            if self.screen_protection_enabled:
+                result = enable_screen_protection(self.hwnd)
+                if result:
+                    self.btn_protect.setText("🛡️ ON")
+                    self.btn_protect.setStyleSheet(BTN_ON)
+                else:
+                    self.screen_protection_enabled = False
+                    print("Failed to enable screen protection")
+            else:
+                disable_screen_protection(self.hwnd)
+                self.btn_protect.setText("🛡️ OFF")
+                self.btn_protect.setStyleSheet(BTN_OFF)
+        except Exception as e:
+            print(f"Error toggling screen protection: {e}")
+            self.screen_protection_enabled = False
     
     def toggle_taskbar_visibility(self):
-        if not self.hwnd:
-            self.hwnd = int(self.winId())
-        self.taskbar_hidden = not self.taskbar_hidden
-        if self.taskbar_hidden:
-            hide_from_taskbar(self.hwnd)
-            self.btn_taskbar.setText("📌 Hide")
-            self.btn_taskbar.setStyleSheet(BTN_ON)
-        else:
-            show_in_taskbar(self.hwnd)
-            self.btn_taskbar.setText("📌 Show")
-            self.btn_taskbar.setStyleSheet(BTN_OFF)
+        try:
+            if not self.hwnd:
+                self.hwnd = int(self.winId())
+            self.taskbar_hidden = not self.taskbar_hidden
+            if self.taskbar_hidden:
+                result = hide_from_taskbar(self.hwnd)
+                if result:
+                    self.btn_taskbar.setText("📌 Hide")
+                    self.btn_taskbar.setStyleSheet(BTN_ON)
+                else:
+                    self.taskbar_hidden = False
+                    print("Failed to hide from taskbar")
+            else:
+                show_in_taskbar(self.hwnd)
+                self.btn_taskbar.setText("📌 Show")
+                self.btn_taskbar.setStyleSheet(BTN_OFF)
+        except Exception as e:
+            print(f"Error toggling taskbar visibility: {e}")
+            self.taskbar_hidden = False
     
     def toggle_always_on_top(self):
-        self.always_on_top = not self.always_on_top
-        if self.always_on_top:
-            self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
-            self.btn_top.setText("📍 On")
-            self.btn_top.setStyleSheet(BTN_ON)
-        else:
-            self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
-            self.btn_top.setText("📍 Off")
-            self.btn_top.setStyleSheet(BTN_OFF)
-        self.show()
-        # Wait longer for window recreation and verify HWND
-        QTimer.singleShot(200, self._reapply_settings)
+        try:
+            self.always_on_top = not self.always_on_top
+            if self.always_on_top:
+                self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
+                self.btn_top.setText("📍 On")
+                self.btn_top.setStyleSheet(BTN_ON)
+            else:
+                self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
+                self.btn_top.setText("📍 Off")
+                self.btn_top.setStyleSheet(BTN_OFF)
+            self.show()
+            # Wait longer for window recreation and verify HWND
+            QTimer.singleShot(200, self._reapply_settings)
+        except Exception as e:
+            print(f"Error toggling always on top: {e}")
+            self.always_on_top = not self.always_on_top  # Revert state
     
     def _reapply_settings(self):
         try:
@@ -314,10 +368,19 @@ class StealthCaptionApp(QMainWindow):
     
     def closeEvent(self, event):
         try:
+            # Stop the polling timer
+            if hasattr(self, 'timer') and self.timer:
+                self.timer.stop()
+
+            # Remove hotkey
             if self.hotkey_handle is not None:
                 keyboard.remove_hotkey(self.hotkey_handle)
+
+            # Cleanup caption reader
+            if hasattr(self, 'caption_reader') and self.caption_reader:
+                del self.caption_reader
         except Exception as e:
-            print(f"Warning: Failed to remove hotkey: {e}")
+            print(f"Warning: Failed to cleanup resources: {e}")
         event.accept()
 
 

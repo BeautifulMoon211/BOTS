@@ -15,12 +15,24 @@ SetWindowDisplayAffinity.restype = wintypes.BOOL
 
 
 def enable_screen_protection(hwnd: int) -> bool:
-    result = SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)
-    if not result:
-        result = SetWindowDisplayAffinity(hwnd, 0x00000001)  # WDA_MONITOR fallback
-    return bool(result)
+    try:
+        if not hwnd:
+            return False
+        result = SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)
+        if not result:
+            result = SetWindowDisplayAffinity(hwnd, 0x00000001)  # WDA_MONITOR fallback
+        return bool(result)
+    except Exception as e:
+        print(f"Error enabling screen protection: {e}")
+        return False
 
 
 def disable_screen_protection(hwnd: int) -> bool:
-    return bool(SetWindowDisplayAffinity(hwnd, WDA_NONE))
+    try:
+        if not hwnd:
+            return False
+        return bool(SetWindowDisplayAffinity(hwnd, WDA_NONE))
+    except Exception as e:
+        print(f"Error disabling screen protection: {e}")
+        return False
 

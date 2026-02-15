@@ -57,25 +57,33 @@ class LiveCaptionReader:
         """Find the Live Captions window."""
         if not self.uia:
             return None
-        
+
         try:
             root = self.uia.GetRootElement()
-            
+            if not root:
+                print("Failed to get root element")
+                return None
+
+            # Check if TreeScope_Descendants is available
+            if 'TreeScope_Descendants' not in globals() or TreeScope_Descendants is None:
+                print("TreeScope_Descendants not available")
+                return None
+
             # Create condition to find Live Captions window
             # The window class name is typically "LiveCaptionsDesktopWindow"
             condition = self.uia.CreatePropertyCondition(
                 UIA_NamePropertyId, "Live captions"
             )
-            
+
             self.caption_window = root.FindFirst(TreeScope_Descendants, condition)
-            
+
             if not self.caption_window:
                 # Try alternative name
                 condition = self.uia.CreatePropertyCondition(
                     UIA_NamePropertyId, "Live Captions"
                 )
                 self.caption_window = root.FindFirst(TreeScope_Descendants, condition)
-            
+
             return self.caption_window
         except Exception as e:
             print(f"Error finding caption window: {e}")
@@ -92,6 +100,10 @@ class LiveCaptionReader:
                 self.find_caption_window()
 
             if not self.caption_window:
+                return ""
+
+            # Check if TreeScope_Descendants is available
+            if 'TreeScope_Descendants' not in globals() or TreeScope_Descendants is None:
                 return ""
 
             # Find all text elements in the caption window
