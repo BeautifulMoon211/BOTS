@@ -35,7 +35,7 @@
 
 2. **⌨️ Hotkey Editor**
    - Shows and edits the global hotkey
-   - Default: Ctrl+Shift+C
+   - Default: Ctrl+Shift+A
    - **Editable:** Click to edit, press Enter to apply
    - Validates hotkey format
    - Reverts to default if invalid
@@ -65,7 +65,7 @@
 
 ## Keyboard Shortcuts
 
-- **Customizable Global Hotkey** (default: Ctrl+Shift+C)
+- **Customizable Global Hotkey** (default: Ctrl+Shift+A)
   - Copy and paste marked text from anywhere
   - Works even when window is not focused
   - Automatically pastes to active window

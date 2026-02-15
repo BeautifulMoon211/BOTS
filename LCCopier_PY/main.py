@@ -83,27 +83,59 @@ class FlowLayout(QLayout):
         x = rect.x()
         y = rect.y()
         line_height = 0
-        spacing = self.spacing()
+        base_spacing = self.spacing()
+
+        # First pass: calculate total width needed and items per row
+        rows = []
+        current_row = []
+        current_row_width = 0
 
         for item in self.item_list:
-            widget = item.widget()
-            space_x = spacing
-            space_y = spacing
+            item_width = item.sizeHint().width()
 
-            next_x = x + item.sizeHint().width() + space_x
-            if next_x - space_x > rect.right() and line_height > 0:
-                x = rect.x()
-                y = y + line_height + space_y
-                next_x = x + item.sizeHint().width() + space_x
-                line_height = 0
+            # Check if item fits in current row
+            test_width = current_row_width + item_width
+            if current_row:
+                test_width += base_spacing
 
-            if not test_only:
-                item.setGeometry(QRect(QPoint(x, y), item.sizeHint()))
+            if test_width <= rect.width() or not current_row:
+                current_row.append(item)
+                current_row_width = test_width
+            else:
+                # Start new row
+                rows.append((current_row, current_row_width))
+                current_row = [item]
+                current_row_width = item_width
 
-            x = next_x
-            line_height = max(line_height, item.sizeHint().height())
+        if current_row:
+            rows.append((current_row, current_row_width))
 
-        return y + line_height - rect.y()
+        # Second pass: layout items with distributed spacing
+        y = rect.y()
+        for row_items, row_width in rows:
+            # Calculate spacing for this row
+            if len(row_items) > 1:
+                # Distribute extra space evenly between items
+                available_space = rect.width() - sum(item.sizeHint().width() for item in row_items)
+                spacing_between = available_space / (len(row_items) + 1)
+            else:
+                spacing_between = base_spacing
+
+            x = rect.x() + spacing_between
+            row_height = 0
+
+            for item in row_items:
+                item_size = item.sizeHint()
+
+                if not test_only:
+                    item.setGeometry(QRect(QPoint(int(x), y), item_size))
+
+                x += item_size.width() + spacing_between
+                row_height = max(row_height, item_size.height())
+
+            y += row_height + base_spacing
+
+        return y - rect.y()
 
 
 
@@ -234,11 +266,11 @@ class StealthCaptionApp(QMainWindow):
         self.current_font_size = 13  # Default font size
 
         self._init_ui()
-        # Fixed global hotkey: Ctrl+Shift+C
+        # Fixed global hotkey: Ctrl+Shift+a
         try:
-            self.hotkey_handle = keyboard.add_hotkey('ctrl+shift+c', self._on_global_copy, suppress=True)
+            self.hotkey_handle = keyboard.add_hotkey('ctrl+shift+a', self._on_global_copy, suppress=True)
         except Exception as e:
-            print(f"Warning: Failed to register global hotkey Ctrl+Shift+C: {e}")
+            print(f"Warning: Failed to register global hotkey Ctrl+Shift+a: {e}")
             self.hotkey_handle = None
 
         self.timer = QTimer(self)
@@ -248,8 +280,8 @@ class StealthCaptionApp(QMainWindow):
         QTimer.singleShot(100, self._init_hwnd)
 
     def _init_ui(self):
-        self.setWindowTitle("Caption")
-        self.resize(500, 300)  # Increased default height for better resizing
+        self.setWindowTitle("LCCopier")
+        self.resize(550, 250)  # Increased default height for better resizing
         self.setMinimumSize(300, 150)  # Set minimum size
         self.setStyleSheet("QMainWindow{background:#0f0f1a}")
         
@@ -287,7 +319,7 @@ class StealthCaptionApp(QMainWindow):
         hotkey_lbl.setFixedHeight(22)
         group1_layout.addWidget(hotkey_lbl)
 
-        self.hotkey_editor = QLineEdit("Ctrl+Shift+C")
+        self.hotkey_editor = QLineEdit("Ctrl+Shift+a")
         self.hotkey_editor.setStyleSheet("QLineEdit{background:#2d2d4a;color:#a0a0c0;font-size:10px;border:1px solid #3d3d5c;padding:2px 4px;border-radius:2px}")
         self.hotkey_editor.setFixedSize(100, 22)
         self.hotkey_editor.setReadOnly(False)  # Now editable
@@ -458,7 +490,7 @@ class StealthCaptionApp(QMainWindow):
         try:
             new_hotkey = self.hotkey_editor.text().strip()
             if not new_hotkey:
-                self.hotkey_editor.setText("Ctrl+Shift+C")
+                self.hotkey_editor.setText("Ctrl+Shift+a")
                 return
 
             # Remove old hotkey
@@ -477,8 +509,8 @@ class StealthCaptionApp(QMainWindow):
                 print(f"Error registering hotkey '{new_hotkey}': {e}")
                 self._set_status("❌ Invalid hotkey", "#ef4444")
                 # Restore default
-                self.hotkey_editor.setText("Ctrl+Shift+C")
-                self.hotkey_handle = keyboard.add_hotkey('ctrl+shift+c', self._on_global_copy, suppress=True)
+                self.hotkey_editor.setText("Ctrl+Shift+a")
+                self.hotkey_handle = keyboard.add_hotkey('ctrl+shift+a', self._on_global_copy, suppress=True)
         except Exception as e:
             print(f"Error updating hotkey: {e}")
     
