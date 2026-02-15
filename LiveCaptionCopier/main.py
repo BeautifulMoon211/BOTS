@@ -40,11 +40,15 @@ class CaptionDisplay(QTextEdit):
         self.viewport().setMouseTracking(True)
     
     def enterEvent(self, event):
-        QApplication.setOverrideCursor(Qt.CursorShape.ArrowCursor)
+        # Only set cursor if not already overridden to prevent stack corruption
+        if not QApplication.overrideCursor():
+            QApplication.setOverrideCursor(Qt.CursorShape.ArrowCursor)
         super().enterEvent(event)
-    
+
     def leaveEvent(self, event):
-        QApplication.restoreOverrideCursor()
+        # Only restore if cursor is currently overridden
+        if QApplication.overrideCursor():
+            QApplication.restoreOverrideCursor()
         super().leaveEvent(event)
     
     def mouseReleaseEvent(self, event):
@@ -75,7 +79,11 @@ class CaptionDisplay(QTextEdit):
             trim = len(text) - self.MAX_CHARS
             while trim < len(text) and not text[trim].isspace():
                 trim += 1
-            text = text[trim + 1:]
+            # Ensure we don't go out of bounds
+            if trim + 1 < len(text):
+                text = text[trim + 1:]
+            else:
+                text = text[trim:] if trim < len(text) else text[-self.MAX_CHARS:]
         self.full_text = text
         self._refresh()
     
@@ -85,25 +93,31 @@ class CaptionDisplay(QTextEdit):
             return
         scroll = self.verticalScrollBar().value()
         self.blockSignals(True)
-        
-        mark_pos = self.full_text.find(self.marked_word[:20]) if self.marked_word else -1
+
+        # Safely handle marked_word slicing with None check
+        mark_pos = -1
+        if self.marked_word:
+            search_str = self.marked_word[:20] if len(self.marked_word) >= 20 else self.marked_word
+            mark_pos = self.full_text.find(search_str)
+
         if mark_pos < 0:
             self.marked_word = None
-        
+
         if mark_pos >= 0:
             before = escape(self.full_text[:mark_pos]).replace('\n', '<br>')
             after = escape(self.full_text[mark_pos:]).replace('\n', '<br>')
             self.setHtml(f'<span style="color:#999">{before}</span><span style="color:#228B22">{after}</span>')
         else:
             self.setPlainText(self.full_text)
-        
+
         self.blockSignals(False)
         self.verticalScrollBar().setValue(scroll)
     
     def get_marked_text(self):
         """Get text from mark to end."""
         if self.marked_word:
-            pos = self.full_text.find(self.marked_word[:20])
+            search_str = self.marked_word[:20] if len(self.marked_word) >= 20 else self.marked_word
+            pos = self.full_text.find(search_str)
             if pos >= 0:
                 return self.full_text[pos:]
         return self.full_text
@@ -123,7 +137,11 @@ class StealthCaptionApp(QMainWindow):
         
         self._init_ui()
         # Fixed global hotkey: Ctrl+Shift+C
-        self.hotkey_handle = keyboard.add_hotkey('ctrl+shift+c', self._on_global_copy, suppress=True)
+        try:
+            self.hotkey_handle = keyboard.add_hotkey('ctrl+shift+c', self._on_global_copy, suppress=True)
+        except Exception as e:
+            print(f"Warning: Failed to register global hotkey Ctrl+Shift+C: {e}")
+            self.hotkey_handle = None
         
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._poll_captions)
@@ -225,7 +243,8 @@ class StealthCaptionApp(QMainWindow):
                     self._set_status("🎤 Listening...", "#60a5fa")
                 else:
                     self._set_status("⚠️ Win+Ctrl+L", "#f59e0b")
-        except:
+        except Exception as e:
+            print(f"Error polling captions: {e}")
             self._set_status("❌ Error", "#ef4444")
     
     def _set_status(self, text, color):
@@ -275,20 +294,30 @@ class StealthCaptionApp(QMainWindow):
             self.btn_top.setText("📍 Off")
             self.btn_top.setStyleSheet(BTN_OFF)
         self.show()
-        QTimer.singleShot(100, self._reapply_settings)
+        # Wait longer for window recreation and verify HWND
+        QTimer.singleShot(200, self._reapply_settings)
     
     def _reapply_settings(self):
-        self.hwnd = int(self.winId())
-        if self.screen_protection_enabled:
-            enable_screen_protection(self.hwnd)
-        if self.taskbar_hidden:
-            hide_from_taskbar(self.hwnd)
+        try:
+            new_hwnd = int(self.winId())
+            # Verify HWND is valid (non-zero)
+            if new_hwnd:
+                self.hwnd = new_hwnd
+                if self.screen_protection_enabled:
+                    enable_screen_protection(self.hwnd)
+                if self.taskbar_hidden:
+                    hide_from_taskbar(self.hwnd)
+            else:
+                print("Warning: Invalid HWND after window recreation")
+        except Exception as e:
+            print(f"Error reapplying settings: {e}")
     
     def closeEvent(self, event):
         try:
-            keyboard.remove_hotkey(self.hotkey_handle)
-        except:
-            pass
+            if self.hotkey_handle is not None:
+                keyboard.remove_hotkey(self.hotkey_handle)
+        except Exception as e:
+            print(f"Warning: Failed to remove hotkey: {e}")
         event.accept()
 
 

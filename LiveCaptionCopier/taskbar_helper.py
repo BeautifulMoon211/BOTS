@@ -26,24 +26,30 @@ ShowWindow.restype = wintypes.BOOL
 
 def hide_from_taskbar(hwnd: int) -> bool:
     try:
+        if not hwnd:
+            return False
         style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
         new_style = (style & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW
         SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_style)
         ShowWindow(hwnd, 0)
         ShowWindow(hwnd, 5)
         return True
-    except:
+    except Exception as e:
+        print(f"Error hiding from taskbar: {e}")
         return False
 
 
 def show_in_taskbar(hwnd: int) -> bool:
     try:
+        if not hwnd:
+            return False
         style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
         new_style = (style | WS_EX_APPWINDOW) & ~WS_EX_TOOLWINDOW
         SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_style)
         ShowWindow(hwnd, 0)
         ShowWindow(hwnd, 5)
         return True
-    except:
+    except Exception as e:
+        print(f"Error showing in taskbar: {e}")
         return False
 

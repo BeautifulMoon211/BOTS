@@ -19,13 +19,17 @@ UIA_WindowControlTypeId = 50032
 try:
     comtypes.client.GetModule('UIAutomationCore.dll')
     from comtypes.gen.UIAutomationClient import *
-except:
-    pass
+except Exception as e:
+    print(f"Warning: Failed to load UI Automation: {e}")
+    IUIAutomation = None
+    TreeScope_Descendants = None
 
 
 class LiveCaptionReader:
     """Reads text from Windows Live Captions window."""
-    
+
+    MAX_TEXT_LENGTH = 50000  # Prevent unbounded memory growth
+
     def __init__(self):
         self.uia = None
         self.caption_window = None
@@ -35,6 +39,12 @@ class LiveCaptionReader:
     def _init_uia(self):
         """Initialize UI Automation."""
         try:
+            # Check if IUIAutomation was loaded successfully
+            if 'IUIAutomation' not in globals() or IUIAutomation is None:
+                print("UI Automation interface not available")
+                self.uia = None
+                return
+
             self.uia = comtypes.client.CreateObject(
                 '{ff48dba4-60ef-4201-aa87-54103eef594e}',
                 interface=IUIAutomation
@@ -75,46 +85,72 @@ class LiveCaptionReader:
         """Get current caption text from Live Captions window."""
         if not self.uia:
             return ""
-        
+
         try:
             # Find window if not found yet
             if not self.caption_window:
                 self.find_caption_window()
-            
+
             if not self.caption_window:
                 return ""
-            
+
             # Find all text elements in the caption window
             condition = self.uia.CreatePropertyCondition(
                 UIA_ControlTypePropertyId, UIA_TextControlTypeId
             )
-            
+
             text_elements = self.caption_window.FindAll(TreeScope_Descendants, condition)
-            
-            if not text_elements:
+
+            if not text_elements or text_elements.Length == 0:
                 return self.last_text
-            
+
             # Collect all text
             texts = []
             for i in range(text_elements.Length):
-                element = text_elements.GetElement(i)
-                name = element.CurrentName
-                if name:
-                    texts.append(name)
-            
+                try:
+                    element = text_elements.GetElement(i)
+                    if element is None:
+                        continue
+                    name = element.CurrentName
+                    if name and isinstance(name, str):
+                        texts.append(name)
+                except Exception as e:
+                    # Skip invalid elements
+                    print(f"Warning: Failed to get element {i}: {e}")
+                    continue
+
             if texts:
-                self.last_text = " ".join(texts)
-            
+                new_text = " ".join(texts)
+                # Prevent unbounded memory growth
+                if len(new_text) > self.MAX_TEXT_LENGTH:
+                    # Keep only the last MAX_TEXT_LENGTH characters
+                    new_text = new_text[-self.MAX_TEXT_LENGTH:]
+                self.last_text = new_text
+
             return self.last_text
-            
+
         except Exception as e:
             # Window might have been closed, try to find it again
+            print(f"Error getting caption text: {e}")
             self.caption_window = None
             return self.last_text
     
     def is_available(self):
         """Check if Live Captions is running."""
-        return self.find_caption_window() is not None
+        try:
+            return self.find_caption_window() is not None
+        except Exception as e:
+            print(f"Error checking caption availability: {e}")
+            return False
+
+    def __del__(self):
+        """Cleanup COM objects."""
+        try:
+            # Release COM objects to prevent memory leaks
+            self.caption_window = None
+            self.uia = None
+        except Exception:
+            pass
 
 
 # Alternative simpler approach using FindWindow
