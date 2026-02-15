@@ -2,139 +2,198 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>LinkCopier Options</title>
+  <title>LinkCopier Settings - Supabase</title>
   <style>
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
       padding: 20px;
-      max-width: 600px;
+      max-width: 700px;
       margin: 0 auto;
-      background: #f5f5f5;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
     }
+    
     .container {
       background: white;
       padding: 30px;
-      border-radius: 8px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
     }
+    
     h1 {
       color: #333;
       margin-top: 0;
-      font-size: 24px;
+      font-size: 28px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
+    
+    h2 {
+      color: #555;
+      font-size: 18px;
+      margin-top: 25px;
+      margin-bottom: 15px;
+      border-bottom: 2px solid #667eea;
+      padding-bottom: 8px;
+    }
+    
     label {
       display: block;
       margin-bottom: 8px;
       color: #555;
       font-weight: 500;
     }
-    input[type="text"] {
+    
+    input[type="text"],
+    input[type="password"] {
       width: 100%;
-      padding: 10px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
+      padding: 12px;
+      border: 2px solid #ddd;
+      border-radius: 6px;
       font-size: 14px;
       box-sizing: border-box;
       margin-bottom: 15px;
+      font-family: 'Courier New', monospace;
     }
-    input[type="text"]:focus {
+    
+    input:focus {
       outline: none;
-      border-color: #4285f4;
-      box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.1);
+      border-color: #667eea;
     }
+    
     button {
-      background: #4285f4;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
       border: none;
-      padding: 10px 20px;
-      border-radius: 4px;
+      padding: 12px 24px;
+      border-radius: 6px;
       cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
+      font-size: 15px;
+      font-weight: 600;
       margin-right: 10px;
+      transition: transform 0.2s, box-shadow 0.2s;
     }
+    
     button:hover {
-      background: #3367d6;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
     }
-    button:active {
-      background: #2851a3;
+    
+    button.secondary {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
     }
-    .secondary {
-      background: #f1f3f4;
-      color: #333;
+    
+    button.view {
+      background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
     }
-    .secondary:hover {
-      background: #e8eaed;
-    }
+    
     .status {
-      margin-top: 15px;
-      padding: 10px;
-      border-radius: 4px;
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 6px;
       display: none;
+      font-weight: 500;
     }
+    
     .status.success {
       background: #d4edda;
       color: #155724;
       border: 1px solid #c3e6cb;
     }
+    
     .status.error {
       background: #f8d7da;
       color: #721c24;
       border: 1px solid #f5c6cb;
     }
+    
     .info {
       background: #e7f3ff;
       padding: 15px;
-      border-radius: 4px;
+      border-radius: 6px;
       margin-top: 20px;
-      border-left: 4px solid #4285f4;
+      border-left: 4px solid #2196F3;
     }
+    
     .info h3 {
       margin-top: 0;
-      color: #1967d2;
+      color: #1976D2;
       font-size: 16px;
     }
+    
     .info p {
-      margin: 5px 0;
+      margin: 8px 0;
       color: #555;
-      font-size: 14px;
-      line-height: 1.5;
+      line-height: 1.6;
     }
-    .info code {
-      background: #f1f3f4;
+    
+    code {
+      background: #f5f5f5;
       padding: 2px 6px;
       border-radius: 3px;
       font-family: 'Courier New', monospace;
       font-size: 13px;
+      color: #d63384;
+    }
+    
+    .help-link {
+      color: #667eea;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    
+    .help-link:hover {
+      text-decoration: underline;
+    }
+    
+    .emoji {
+      font-size: 24px;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>⚙️ LinkCopier Settings</h1>
+    <h1><span class="emoji">🔗</span> LinkCopier Settings</h1>
+    <p style="color: #666; margin-top: -10px;">Free Supabase Database - No Payment Required!</p>
     
-    <label for="sheetUrl">Google Sheet URL:</label>
-    <input 
-      type="text" 
-      id="sheetUrl" 
-      placeholder="https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID"
-    >
+    <h2>📊 Supabase Configuration</h2>
     
-    <button id="save">Save Settings</button>
-    <button id="test" class="secondary">Test Connection</button>
+    <label for="supabaseUrl">Supabase Project URL:</label>
+    <input type="text" id="supabaseUrl" placeholder="https://xxxxx.supabase.co">
+    
+    <label for="supabaseKey">Supabase API Key (anon/public):</label>
+    <input type="password" id="supabaseKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+    
+    <button id="save">💾 Save Settings</button>
+    <button id="test" class="secondary">🔌 Test Connection</button>
+    <button id="viewData" class="view">📊 View Database</button>
     
     <div id="status" class="status"></div>
     
     <div class="info">
-      <h3>📋 How to use:</h3>
-      <p>1. Enter your Google Sheet URL above (or use the default)</p>
-      <p>2. Press <code>F9</code> on any webpage to copy the URL to your sheet</p>
-      <p>3. The sheet will auto-number entries and add a status dropdown</p>
-      <p><strong>Default Sheet:</strong> <code>1p7n7mjurMZWstJKEeQw7gMici6VOOdlScVB6Jav0HVM</code></p>
+      <h3>📋 Setup Instructions:</h3>
+      <p><strong>1.</strong> Go to <a href="https://supabase.com" target="_blank" class="help-link">supabase.com</a> and create a free account</p>
+      <p><strong>2.</strong> Create a new project (wait 2 minutes for setup)</p>
+      <p><strong>3.</strong> Go to <strong>Settings → API</strong></p>
+      <p><strong>4.</strong> Copy <strong>Project URL</strong> and paste above</p>
+      <p><strong>5.</strong> Copy <strong>anon public</strong> key and paste above</p>
+      <p><strong>6.</strong> Click "Save Settings" then "Test Connection"</p>
+      <p><strong>7.</strong> Press F9 on any webpage to save URLs!</p>
+    </div>
+    
+    <div class="info" style="background: #fff3cd; border-left-color: #ffc107;">
+      <h3>✨ Benefits of Supabase:</h3>
+      <p>✅ <strong>100% Free</strong> - No credit card required</p>
+      <p>✅ <strong>No OAuth</strong> - Simple API key authentication</p>
+      <p>✅ <strong>500MB Database</strong> - Store thousands of URLs</p>
+      <p>✅ <strong>Unlimited API Requests</strong> - No daily limits</p>
+      <p>✅ <strong>Web Dashboard</strong> - View and edit your data online</p>
+      <p>✅ <strong>Real-time Updates</strong> - See changes instantly</p>
     </div>
   </div>
   
-  <script src="options.js"></script>
+  <script src="options-supabase.js"></script>
 </body>
 </html>
 

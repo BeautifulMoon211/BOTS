@@ -1,18 +1,16 @@
 {
   "manifest_version": 3,
-  "name": "LinkCopier - Real-time URL to Google Sheets",
-  "version": "1.0.0",
-  "description": "Press F9 to copy current tab URL to Google Sheets with auto-numbering and status tracking",
+  "name": "LinkCopier - Real-time URL Tracker",
+  "version": "2.0.0",
+  "description": "Press F9 to copy current tab URL to Supabase database with auto-numbering and status tracking",
   "permissions": [
     "tabs",
     "storage",
     "activeTab",
-    "identity",
     "notifications"
   ],
   "host_permissions": [
-    "https://docs.google.com/*",
-    "https://sheets.googleapis.com/*"
+    "https://*.supabase.co/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -43,12 +41,6 @@
     "default_icon": "icon.png",
     "default_title": "LinkCopier",
     "default_popup": "popup.html"
-  },
-  "oauth2": {
-    "client_id": "YOUR_CLIENT_ID.apps.googleusercontent.com",
-    "scopes": [
-      "https://www.googleapis.com/auth/spreadsheets"
-    ]
   }
 }
 

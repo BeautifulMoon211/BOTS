@@ -1,85 +1,101 @@
-// Options page script
-const DEFAULT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1p7n7mjurMZWstJKEeQw7gMici6VOOdlScVB6Jav0HVM';
+// Options page script for Supabase version
 
 // Load saved settings
 document.addEventListener('DOMContentLoaded', async () => {
-  const result = await chrome.storage.sync.get(['sheetUrl']);
-  document.getElementById('sheetUrl').value = result.sheetUrl || DEFAULT_SHEET_URL;
+  const result = await chrome.storage.sync.get(['supabaseUrl', 'supabaseKey']);
+  document.getElementById('supabaseUrl').value = result.supabaseUrl || '';
+  document.getElementById('supabaseKey').value = result.supabaseKey || '';
 });
 
 // Save settings
 document.getElementById('save').addEventListener('click', async () => {
-  const sheetUrl = document.getElementById('sheetUrl').value.trim();
+  const supabaseUrl = document.getElementById('supabaseUrl').value.trim();
+  const supabaseKey = document.getElementById('supabaseKey').value.trim();
   
-  if (!sheetUrl) {
-    showStatus('Please enter a Google Sheet URL', 'error');
+  if (!supabaseUrl || !supabaseKey) {
+    showStatus('Please enter both Supabase URL and API Key', 'error');
     return;
   }
 
   // Validate URL format
-  if (!sheetUrl.match(/https:\/\/docs\.google\.com\/spreadsheets\/d\/[a-zA-Z0-9-_]+/)) {
-    showStatus('Invalid Google Sheet URL format', 'error');
+  if (!supabaseUrl.match(/https:\/\/[a-zA-Z0-9-]+\.supabase\.co/)) {
+    showStatus('Invalid Supabase URL format. Should be: https://xxxxx.supabase.co', 'error');
     return;
   }
 
-  await chrome.storage.sync.set({ sheetUrl });
-  showStatus('Settings saved successfully!', 'success');
+  await chrome.storage.sync.set({ supabaseUrl, supabaseKey });
+  showStatus('✓ Settings saved successfully!', 'success');
 });
 
 // Test connection
 document.getElementById('test').addEventListener('click', async () => {
-  const sheetUrl = document.getElementById('sheetUrl').value.trim();
+  const supabaseUrl = document.getElementById('supabaseUrl').value.trim();
+  const supabaseKey = document.getElementById('supabaseKey').value.trim();
   
-  if (!sheetUrl) {
-    showStatus('Please enter a Google Sheet URL first', 'error');
+  if (!supabaseUrl || !supabaseKey) {
+    showStatus('Please enter both Supabase URL and API Key first', 'error');
     return;
   }
 
   try {
     showStatus('Testing connection...', 'success');
     
-    // Extract spreadsheet ID
-    const match = sheetUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-    if (!match) {
-      showStatus('Invalid Google Sheet URL', 'error');
-      return;
-    }
-    
-    const spreadsheetId = match[1];
-    
-    // Get auth token
-    const token = await new Promise((resolve, reject) => {
-      chrome.identity.getAuthToken({ interactive: true }, (token) => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-        } else {
-          resolve(token);
-        }
-      });
-    });
-
-    // Try to read the sheet
+    // Try to query the urls table
     const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`,
+      `${supabaseUrl}/rest/v1/urls?select=count&limit=1`,
       {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
           'Content-Type': 'application/json'
         }
       }
     );
 
     if (response.ok) {
-      const data = await response.json();
-      showStatus(`✓ Connected successfully to: ${data.properties.title}`, 'success');
+      // Count total URLs
+      const countResponse = await fetch(
+        `${supabaseUrl}/rest/v1/urls?select=count`,
+        {
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'count=exact'
+          }
+        }
+      );
+      
+      const count = countResponse.headers.get('content-range')?.split('/')[1] || '0';
+      showStatus(`✓ Connected successfully! Database has ${count} URLs stored.`, 'success');
     } else {
       const error = await response.text();
-      showStatus(`Connection failed: ${response.statusText}`, 'error');
+      showStatus(`✗ Connection failed: ${response.statusText}. Make sure the 'urls' table exists.`, 'error');
       console.error('Test error:', error);
     }
   } catch (error) {
-    showStatus(`Error: ${error.message}`, 'error');
+    showStatus(`✗ Error: ${error.message}`, 'error');
     console.error('Test error:', error);
+  }
+});
+
+// View database
+document.getElementById('viewData').addEventListener('click', async () => {
+  const supabaseUrl = document.getElementById('supabaseUrl').value.trim();
+  
+  if (!supabaseUrl) {
+    showStatus('Please save Supabase URL first', 'error');
+    return;
+  }
+
+  // Extract project ID from URL
+  const match = supabaseUrl.match(/https:\/\/([a-zA-Z0-9-]+)\.supabase\.co/);
+  if (match) {
+    const projectId = match[1];
+    const dashboardUrl = `https://supabase.com/dashboard/project/${projectId}/editor`;
+    window.open(dashboardUrl, '_blank');
+  } else {
+    showStatus('Invalid Supabase URL', 'error');
   }
 });
 

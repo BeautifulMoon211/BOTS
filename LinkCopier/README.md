@@ -1,21 +1,23 @@
-# 🔗 LinkCopier - Real-time URL to Google Sheets
+# 🔗 LinkCopier - Real-time URL Tracker
 
-> **Press Ctrl+Shift+U (or F9 after setup) to instantly copy any URL to your Google Sheet!**
+> **Press Ctrl+Shift+U (or F9 after setup) to instantly save any URL to your free Supabase database!**
 
-A Chrome extension that automatically copies the current tab's URL to a Google Sheet with a keyboard shortcut. Features auto-numbering, status tracking with color-coded dropdowns, and real-time synchronization.
+A Chrome extension that automatically saves the current tab's URL to a Supabase database with a keyboard shortcut. Features auto-numbering, status tracking, and real-time synchronization. **100% free - no payment required!**
 
 [![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-4285f4?logo=google-chrome&logoColor=white)](chrome://extensions/)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-34a853)](manifest.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## Features
+## ✨ Features
 
-- 🔥 **F9 Hotkey**: Press F9 to instantly copy the current URL to your Google Sheet
-- 📊 **Auto-numbering**: Each URL gets an auto-incremented number
-- ✅ **Status Tracking**: Dropdown column with "Yes" (Green) / "No" (Red) options
-- 🎯 **Centered Text**: All cells are automatically centered
-- ⚙️ **Configurable**: Set your own Google Sheet URL in settings
-- 🔔 **Notifications**: Get instant feedback when URLs are added
+- 🎯 **F9 Hotkey**: Press F9 to instantly save the current URL to your database
+- 🔢 **Auto-numbering**: Each URL gets an auto-incremented number (1, 2, 3...)
+- 📊 **Status Tracking**: Track URLs with "Yes" or "No" status
+- 💾 **Free Database**: Uses Supabase (500MB free, no credit card required!)
+- 🔄 **Real-time Sync**: Changes appear instantly in your database
+- 🌐 **Web Dashboard**: View and edit your data online at supabase.com
+- 🚫 **No OAuth**: Simple API key authentication (no Google Cloud setup!)
+- 🔔 **Notifications**: Get instant feedback when URLs are saved
 
 ## Installation
 
