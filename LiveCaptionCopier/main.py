@@ -259,70 +259,103 @@ class StealthCaptionApp(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         
-        # Control bar with wrapping support
+        # Control bar with wrapping support - 3 groups max
         bar = QFrame()
         bar.setMinimumHeight(26)
+        bar.setMaximumHeight(78)  # Max 3 rows (26px * 3)
         bar.setStyleSheet("QFrame{background:#1a1a2e;border-bottom:1px solid #2d2d44}")
         bar.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
         # Use FlowLayout for wrapping
-        flow_layout = FlowLayout(bar, margin=2, spacing=2)
+        flow_layout = FlowLayout(bar, margin=2, spacing=6)
+
+        # GROUP 1: Status & Hotkey Editor
+        group1 = QWidget()
+        group1.setStyleSheet("background:transparent")
+        group1.setFixedHeight(22)
+        group1_layout = QHBoxLayout(group1)
+        group1_layout.setContentsMargins(4, 0, 4, 0)
+        group1_layout.setSpacing(4)
 
         self.status_label = QLabel("⏳ Waiting...")
-        self.status_label.setStyleSheet("color:#808090;font-size:10px;padding:0 8px")
-        flow_layout.addWidget(self.status_label)
+        self.status_label.setStyleSheet("color:#808090;font-size:10px;padding:0 4px")
+        self.status_label.setFixedHeight(22)
+        group1_layout.addWidget(self.status_label)
 
-        # Hotkey editor
         hotkey_lbl = QLabel("⌨️")
         hotkey_lbl.setStyleSheet("color:#a0a0c0;font-size:10px")
-        flow_layout.addWidget(hotkey_lbl)
+        hotkey_lbl.setFixedHeight(22)
+        group1_layout.addWidget(hotkey_lbl)
 
         self.hotkey_editor = QLineEdit("Ctrl+Shift+C")
         self.hotkey_editor.setStyleSheet("QLineEdit{background:#2d2d4a;color:#a0a0c0;font-size:10px;border:1px solid #3d3d5c;padding:2px 4px;border-radius:2px}")
-        self.hotkey_editor.setMaximumWidth(100)
-        self.hotkey_editor.setReadOnly(True)  # For now, just display
-        flow_layout.addWidget(self.hotkey_editor)
+        self.hotkey_editor.setFixedSize(100, 22)
+        self.hotkey_editor.setReadOnly(False)  # Now editable
+        self.hotkey_editor.editingFinished.connect(self._update_hotkey)
+        group1_layout.addWidget(self.hotkey_editor)
 
-        # Buttons
-        self.btn_copy = self._make_btn("📋", self.copy_from_mark)
-        flow_layout.addWidget(self.btn_copy)
+        flow_layout.addWidget(group1)
+
+        # GROUP 2: Three toggle buttons
+        group2 = QWidget()
+        group2.setStyleSheet("background:transparent")
+        group2.setFixedHeight(22)
+        group2_layout = QHBoxLayout(group2)
+        group2_layout.setContentsMargins(4, 0, 4, 0)
+        group2_layout.setSpacing(4)
 
         self.btn_protect = self._make_btn("🛡️ OFF", self.toggle_screen_protection)
         self.btn_taskbar = self._make_btn("📌 Show", self.toggle_taskbar_visibility)
         self.btn_top = self._make_btn("📍 Off", self.toggle_always_on_top)
 
         for btn in [self.btn_protect, self.btn_taskbar, self.btn_top]:
-            flow_layout.addWidget(btn)
+            btn.setFixedHeight(22)
+            group2_layout.addWidget(btn)
+
+        flow_layout.addWidget(group2)
+
+        # GROUP 3: Font size & Opacity sliders
+        group3 = QWidget()
+        group3.setStyleSheet("background:transparent")
+        group3.setFixedHeight(22)
+        group3_layout = QHBoxLayout(group3)
+        group3_layout.setContentsMargins(4, 0, 4, 0)
+        group3_layout.setSpacing(4)
 
         # Font size controls
         font_lbl = QLabel("A")
         font_lbl.setStyleSheet("color:#a0a0c0;font-size:10px")
-        flow_layout.addWidget(font_lbl)
+        font_lbl.setFixedHeight(22)
+        group3_layout.addWidget(font_lbl)
 
         self.font_slider = QSlider(Qt.Orientation.Horizontal)
-        self.font_slider.setFixedWidth(60)
-        self.font_slider.setRange(8, 32)  # Font size range 8-32px
-        self.font_slider.setValue(13)  # Default font size
+        self.font_slider.setFixedSize(60, 22)
+        self.font_slider.setRange(8, 32)
+        self.font_slider.setValue(13)
         self.font_slider.setStyleSheet("QSlider::groove:horizontal{background:#2d2d4a;height:4px}QSlider::handle:horizontal{background:#6d6dac;width:10px;margin:-3px 0;border-radius:5px}")
         self.font_slider.valueChanged.connect(self._change_font_size)
-        flow_layout.addWidget(self.font_slider)
+        group3_layout.addWidget(self.font_slider)
 
         self.font_size_label = QLabel("13")
         self.font_size_label.setStyleSheet("color:#a0a0c0;font-size:10px;min-width:20px")
-        flow_layout.addWidget(self.font_size_label)
+        self.font_size_label.setFixedHeight(22)
+        group3_layout.addWidget(self.font_size_label)
 
         # Opacity slider
-        lbl = QLabel("🔆")
-        lbl.setStyleSheet("color:#a0a0c0;font-size:10px")
-        flow_layout.addWidget(lbl)
+        opacity_lbl = QLabel("🔆")
+        opacity_lbl.setStyleSheet("color:#a0a0c0;font-size:10px")
+        opacity_lbl.setFixedHeight(22)
+        group3_layout.addWidget(opacity_lbl)
 
-        slider = QSlider(Qt.Orientation.Horizontal)
-        slider.setFixedWidth(60)
-        slider.setRange(30, 100)
-        slider.setValue(100)
-        slider.setStyleSheet("QSlider::groove:horizontal{background:#2d2d4a;height:4px}QSlider::handle:horizontal{background:#6d6dac;width:10px;margin:-3px 0;border-radius:5px}")
-        slider.valueChanged.connect(lambda v: self._set_opacity(v))
-        flow_layout.addWidget(slider)
+        self.opacity_slider = QSlider(Qt.Orientation.Horizontal)
+        self.opacity_slider.setFixedSize(60, 22)
+        self.opacity_slider.setRange(30, 100)
+        self.opacity_slider.setValue(100)
+        self.opacity_slider.setStyleSheet("QSlider::groove:horizontal{background:#2d2d4a;height:4px}QSlider::handle:horizontal{background:#6d6dac;width:10px;margin:-3px 0;border-radius:5px}")
+        self.opacity_slider.valueChanged.connect(lambda v: self._set_opacity(v))
+        group3_layout.addWidget(self.opacity_slider)
+
+        flow_layout.addWidget(group3)
 
         layout.addWidget(bar)
 
@@ -419,16 +452,35 @@ class StealthCaptionApp(QMainWindow):
             self.font_size_label.setText(str(size))
         except Exception as e:
             print(f"Error changing font size: {e}")
-    
-    def copy_from_mark(self):
+
+    def _update_hotkey(self):
+        """Update the global hotkey when user edits it."""
         try:
-            text = self.caption_display.get_marked_text()
-            if text:
-                QApplication.clipboard().setText(text)
-                self._set_status("📋 Copied!", "#a78bfa")
+            new_hotkey = self.hotkey_editor.text().strip()
+            if not new_hotkey:
+                self.hotkey_editor.setText("Ctrl+Shift+C")
+                return
+
+            # Remove old hotkey
+            if self.hotkey_handle is not None:
+                try:
+                    keyboard.remove_hotkey(self.hotkey_handle)
+                except Exception as e:
+                    print(f"Error removing old hotkey: {e}")
+
+            # Register new hotkey
+            try:
+                self.hotkey_handle = keyboard.add_hotkey(new_hotkey, self._on_global_copy, suppress=True)
+                self._set_status(f"⌨️ Hotkey: {new_hotkey}", "#a78bfa")
+                print(f"Hotkey updated to: {new_hotkey}")
+            except Exception as e:
+                print(f"Error registering hotkey '{new_hotkey}': {e}")
+                self._set_status("❌ Invalid hotkey", "#ef4444")
+                # Restore default
+                self.hotkey_editor.setText("Ctrl+Shift+C")
+                self.hotkey_handle = keyboard.add_hotkey('ctrl+shift+c', self._on_global_copy, suppress=True)
         except Exception as e:
-            print(f"Error copying text: {e}")
-            self._set_status("❌ Copy failed", "#ef4444")
+            print(f"Error updating hotkey: {e}")
     
     def toggle_screen_protection(self):
         try:

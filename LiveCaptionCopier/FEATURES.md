@@ -15,54 +15,62 @@
 - **Live Preview:** Font size changes immediately
 - **Display:** Current font size shown next to slider
 
-## Toolbar Controls (Left to Right)
+## Toolbar Controls (Organized in 3 Groups)
 
 ### ✨ Wrapping Toolbar
-- **Adaptive Height:** Toolbar automatically wraps to 2-3 rows when window is narrow
-- **Minimum Height:** 26px per row
-- **Smart Layout:** Controls flow naturally to new rows as needed
+- **3 Groups:** Status/Hotkey, Toggle Buttons, Sliders
+- **Adaptive Height:** Toolbar wraps groups to multiple rows when window is narrow
+- **Default:** Single row (26px height) when window is wide
+- **Maximum:** 3 rows (78px height) when window is narrow
+- **Smart Layout:** Each group wraps as a unit to new rows
 
+### Group 1: Status & Hotkey Editor
 1. **Status Indicator**
    - ⏳ Waiting... (gray) - Starting up
    - 🎤 Listening... (blue) - Ready, waiting for captions
    - 🎤 Live (green) - Actively receiving captions
    - ⚠️ Win+Ctrl+L (orange) - Live Captions not running
    - ❌ Error (red) - Error occurred
+   - ⌨️ Hotkey: [key] (purple) - Hotkey updated
 
-2. **⌨️ Hotkey Display**
-   - Shows current global hotkey (Ctrl+Shift+C)
-   - Read-only display
-   - Always visible in toolbar
+2. **⌨️ Hotkey Editor**
+   - Shows and edits the global hotkey
+   - Default: Ctrl+Shift+C
+   - **Editable:** Click to edit, press Enter to apply
+   - Validates hotkey format
+   - Reverts to default if invalid
 
-3. **📋 Copy Button**
-   - Copies text from marked position to end
-   - If no mark, copies all text
-
-4. **🛡️ Screen Protection**
+### Group 2: Toggle Buttons
+3. **🛡️ Screen Protection**
    - OFF (gray) - Window visible in screenshots
    - ON (green) - Window hidden from screen capture
 
-5. **📌 Taskbar Visibility**
+4. **📌 Taskbar Visibility**
    - Show (gray) - Visible in taskbar
    - Hide (green) - Hidden from taskbar
 
-6. **📍 Always On Top**
+5. **📍 Always On Top**
    - Off (gray) - Normal window behavior
    - On (green) - Window stays on top of others
 
-7. **A [Slider] [Size]** - Font Size Control
+### Group 3: Sliders
+6. **A [Slider] [Size]** - Font Size Control
    - Slider: Adjust font size (8-32px)
    - Number: Shows current font size
+   - Default: 13px
 
-8. **🔆 [Slider]** - Opacity Control
+7. **🔆 [Slider]** - Opacity Control
    - Range: 30% to 100%
    - Default: 100% (fully opaque)
 
 ## Keyboard Shortcuts
 
-- **Ctrl+Shift+C** - Global hotkey to copy and paste marked text
+- **Customizable Global Hotkey** (default: Ctrl+Shift+C)
+  - Copy and paste marked text from anywhere
   - Works even when window is not focused
   - Automatically pastes to active window
+  - **Edit in toolbar:** Click the hotkey field, type new hotkey, press Enter
+  - Examples: Ctrl+Alt+C, Shift+F1, Ctrl+Shift+V, etc.
 
 ## Caption Display Features
 
