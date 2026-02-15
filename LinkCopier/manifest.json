@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "LinkCopier - Real-time URL Tracker",
   "version": "2.1.0",
-  "description": "Press Ctrl+Q to save URLs to Supabase. Press Ctrl+Shift+C to export to clipboard for Google Sheets",
+  "description": "Press Ctrl+Q to save URLs to Supabase. Press Ctrl+Shift+Q to export to clipboard for Google Sheets",
   "permissions": [
     "tabs",
     "storage",
@@ -33,7 +33,7 @@
     },
     "export-to-clipboard": {
       "suggested_key": {
-        "default": "Ctrl+Shift+C",
+        "default": "Ctrl+Shift+Q",
         "mac": "Command+Shift+C"
       },
       "description": "Export uncopied URLs to clipboard"

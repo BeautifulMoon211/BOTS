@@ -29,7 +29,7 @@ The LinkCopier extension now includes a one-click export feature that copies unc
 3. Wait for confirmation: "✓ X rows copied to clipboard!"
 
 **Option 2: Use Keyboard Shortcut**
-1. Press **Ctrl+Shift+C** (or Cmd+Shift+C on Mac)
+1. Press **Ctrl+Shift+Q** (or Cmd+Shift+C on Mac)
 2. Wait for notification: "✓ X rows copied to clipboard!"
 
 ### Step 2: Paste into Google Sheets
@@ -103,7 +103,7 @@ Tracks which URLs have been exported to Google Sheets to prevent duplicates.
 | 2 | https://github.com | No |
 | 3 | https://reddit.com | No |
 
-**Click Export (or press Ctrl+Shift+C) → Clipboard contains:**
+**Click Export (or press Ctrl+Shift+Q) → Clipboard contains:**
 ```
 1	https://google.com
 2	https://github.com
@@ -130,7 +130,7 @@ Tracks which URLs have been exported to Google Sheets to prevent duplicates.
 | 4 | https://stackoverflow.com | **No** |
 | 5 | https://youtube.com | **No** |
 
-**Click Export (or press Ctrl+Shift+C) → Clipboard contains:**
+**Click Export (or press Ctrl+Shift+Q) → Clipboard contains:**
 ```
 4	https://stackoverflow.com
 5	https://youtube.com
