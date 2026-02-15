@@ -17,6 +17,11 @@
 
 ## Toolbar Controls (Left to Right)
 
+### ✨ Wrapping Toolbar
+- **Adaptive Height:** Toolbar automatically wraps to 2-3 rows when window is narrow
+- **Minimum Height:** 26px per row
+- **Smart Layout:** Controls flow naturally to new rows as needed
+
 1. **Status Indicator**
    - ⏳ Waiting... (gray) - Starting up
    - 🎤 Listening... (blue) - Ready, waiting for captions
@@ -24,27 +29,32 @@
    - ⚠️ Win+Ctrl+L (orange) - Live Captions not running
    - ❌ Error (red) - Error occurred
 
-2. **📋 Copy Button**
+2. **⌨️ Hotkey Display**
+   - Shows current global hotkey (Ctrl+Shift+C)
+   - Read-only display
+   - Always visible in toolbar
+
+3. **📋 Copy Button**
    - Copies text from marked position to end
    - If no mark, copies all text
 
-3. **🛡️ Screen Protection**
+4. **🛡️ Screen Protection**
    - OFF (gray) - Window visible in screenshots
    - ON (green) - Window hidden from screen capture
 
-4. **📌 Taskbar Visibility**
+5. **📌 Taskbar Visibility**
    - Show (gray) - Visible in taskbar
    - Hide (green) - Hidden from taskbar
 
-5. **📍 Always On Top**
+6. **📍 Always On Top**
    - Off (gray) - Normal window behavior
    - On (green) - Window stays on top of others
 
-6. **A [Slider] [Size]** - Font Size Control
+7. **A [Slider] [Size]** - Font Size Control
    - Slider: Adjust font size (8-32px)
    - Number: Shows current font size
 
-7. **🔆 [Slider]** - Opacity Control
+8. **🔆 [Slider]** - Opacity Control
    - Range: 30% to 100%
    - Default: 100% (fully opaque)
 

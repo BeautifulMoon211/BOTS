@@ -7,9 +7,10 @@ import sys
 from html import escape
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QFrame, QSlider, QLabel, QTextEdit
+    QPushButton, QFrame, QSlider, QLabel, QTextEdit, QLineEdit,
+    QSizePolicy, QLayout
 )
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QSize, QRect, QPoint
 from PyQt6.QtGui import QFont, QTextCursor
 import keyboard
 
@@ -20,6 +21,92 @@ from caption_reader import LiveCaptionReader
 # Style constants
 BTN_OFF = "QPushButton{background:#2d2d4a;border:1px solid #3d3d5c;border-radius:2px;color:#a0a0c0;padding:0 4px;font-size:10px;max-height:20px}QPushButton:hover{background:#3d3d5c}"
 BTN_ON = "QPushButton{background:#2d6d4a;border:1px solid #3d8d5a;border-radius:2px;color:#e0ffe0;padding:0 4px;font-size:10px;max-height:20px}QPushButton:hover{background:#3d7d5a}"
+
+
+class FlowLayout(QLayout):
+    """Layout that wraps widgets to multiple rows when width is insufficient."""
+
+    def __init__(self, parent=None, margin=0, spacing=-1):
+        super().__init__(parent)
+        if parent is not None:
+            self.setContentsMargins(margin, margin, margin, margin)
+        self.setSpacing(spacing)
+        self.item_list = []
+
+    def __del__(self):
+        item = self.takeAt(0)
+        while item:
+            item = self.takeAt(0)
+
+    def addItem(self, item):
+        self.item_list.append(item)
+
+    def count(self):
+        return len(self.item_list)
+
+    def itemAt(self, index):
+        if 0 <= index < len(self.item_list):
+            return self.item_list[index]
+        return None
+
+    def takeAt(self, index):
+        if 0 <= index < len(self.item_list):
+            return self.item_list.pop(index)
+        return None
+
+    def expandingDirections(self):
+        return Qt.Orientation(0)
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        height = self._do_layout(QRect(0, 0, width, 0), True)
+        return height
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        self._do_layout(rect, False)
+
+    def sizeHint(self):
+        return self.minimumSize()
+
+    def minimumSize(self):
+        size = QSize()
+        for item in self.item_list:
+            size = size.expandedTo(item.minimumSize())
+        margin = self.contentsMargins().left()
+        size += QSize(2 * margin, 2 * margin)
+        return size
+
+    def _do_layout(self, rect, test_only):
+        x = rect.x()
+        y = rect.y()
+        line_height = 0
+        spacing = self.spacing()
+
+        for item in self.item_list:
+            widget = item.widget()
+            space_x = spacing
+            space_y = spacing
+
+            next_x = x + item.sizeHint().width() + space_x
+            if next_x - space_x > rect.right() and line_height > 0:
+                x = rect.x()
+                y = y + line_height + space_y
+                next_x = x + item.sizeHint().width() + space_x
+                line_height = 0
+
+            if not test_only:
+                item.setGeometry(QRect(QPoint(x, y), item.sizeHint()))
+
+            x = next_x
+            line_height = max(line_height, item.sizeHint().height())
+
+        return y + line_height - rect.y()
+
+
+
 
 
 class CaptionDisplay(QTextEdit):
@@ -172,34 +259,45 @@ class StealthCaptionApp(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         
-        # Control bar
+        # Control bar with wrapping support
         bar = QFrame()
-        bar.setFixedHeight(26)
+        bar.setMinimumHeight(26)
         bar.setStyleSheet("QFrame{background:#1a1a2e;border-bottom:1px solid #2d2d44}")
-        bar_layout = QHBoxLayout(bar)
-        bar_layout.setContentsMargins(2, 0, 2, 0)
-        bar_layout.setSpacing(2)
-        
+        bar.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        # Use FlowLayout for wrapping
+        flow_layout = FlowLayout(bar, margin=2, spacing=2)
+
         self.status_label = QLabel("⏳ Waiting...")
         self.status_label.setStyleSheet("color:#808090;font-size:10px;padding:0 8px")
-        bar_layout.addWidget(self.status_label)
-        bar_layout.addStretch()
-        
+        flow_layout.addWidget(self.status_label)
+
+        # Hotkey editor
+        hotkey_lbl = QLabel("⌨️")
+        hotkey_lbl.setStyleSheet("color:#a0a0c0;font-size:10px")
+        flow_layout.addWidget(hotkey_lbl)
+
+        self.hotkey_editor = QLineEdit("Ctrl+Shift+C")
+        self.hotkey_editor.setStyleSheet("QLineEdit{background:#2d2d4a;color:#a0a0c0;font-size:10px;border:1px solid #3d3d5c;padding:2px 4px;border-radius:2px}")
+        self.hotkey_editor.setMaximumWidth(100)
+        self.hotkey_editor.setReadOnly(True)  # For now, just display
+        flow_layout.addWidget(self.hotkey_editor)
+
         # Buttons
         self.btn_copy = self._make_btn("📋", self.copy_from_mark)
-        bar_layout.addWidget(self.btn_copy)
-        
+        flow_layout.addWidget(self.btn_copy)
+
         self.btn_protect = self._make_btn("🛡️ OFF", self.toggle_screen_protection)
         self.btn_taskbar = self._make_btn("📌 Show", self.toggle_taskbar_visibility)
         self.btn_top = self._make_btn("📍 Off", self.toggle_always_on_top)
-        
+
         for btn in [self.btn_protect, self.btn_taskbar, self.btn_top]:
-            bar_layout.addWidget(btn)
-        
+            flow_layout.addWidget(btn)
+
         # Font size controls
         font_lbl = QLabel("A")
         font_lbl.setStyleSheet("color:#a0a0c0;font-size:10px")
-        bar_layout.addWidget(font_lbl)
+        flow_layout.addWidget(font_lbl)
 
         self.font_slider = QSlider(Qt.Orientation.Horizontal)
         self.font_slider.setFixedWidth(60)
@@ -207,16 +305,16 @@ class StealthCaptionApp(QMainWindow):
         self.font_slider.setValue(13)  # Default font size
         self.font_slider.setStyleSheet("QSlider::groove:horizontal{background:#2d2d4a;height:4px}QSlider::handle:horizontal{background:#6d6dac;width:10px;margin:-3px 0;border-radius:5px}")
         self.font_slider.valueChanged.connect(self._change_font_size)
-        bar_layout.addWidget(self.font_slider)
+        flow_layout.addWidget(self.font_slider)
 
         self.font_size_label = QLabel("13")
         self.font_size_label.setStyleSheet("color:#a0a0c0;font-size:10px;min-width:20px")
-        bar_layout.addWidget(self.font_size_label)
+        flow_layout.addWidget(self.font_size_label)
 
         # Opacity slider
         lbl = QLabel("🔆")
         lbl.setStyleSheet("color:#a0a0c0;font-size:10px")
-        bar_layout.addWidget(lbl)
+        flow_layout.addWidget(lbl)
 
         slider = QSlider(Qt.Orientation.Horizontal)
         slider.setFixedWidth(60)
@@ -224,7 +322,7 @@ class StealthCaptionApp(QMainWindow):
         slider.setValue(100)
         slider.setStyleSheet("QSlider::groove:horizontal{background:#2d2d4a;height:4px}QSlider::handle:horizontal{background:#6d6dac;width:10px;margin:-3px 0;border-radius:5px}")
         slider.valueChanged.connect(lambda v: self._set_opacity(v))
-        bar_layout.addWidget(slider)
+        flow_layout.addWidget(slider)
 
         layout.addWidget(bar)
 
