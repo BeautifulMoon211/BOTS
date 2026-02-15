@@ -53,6 +53,40 @@ async function getNextRowNumber() {
   }
 }
 
+// Check if URL already exists in database
+async function urlExists(url) {
+  try {
+    const config = await loadSupabaseConfig();
+
+    // Query for exact URL match
+    const response = await fetch(
+      `${config.url}/rest/v1/urls?url=eq.${encodeURIComponent(url)}&select=id,number`,
+      {
+        headers: {
+          'apikey': config.key,
+          'Authorization': `Bearer ${config.key}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to check URL: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    if (data.length > 0) {
+      return { exists: true, number: data[0].number };
+    }
+
+    return { exists: false };
+  } catch (error) {
+    console.error('Error checking URL existence:', error);
+    return { exists: false };
+  }
+}
+
 // Add URL to Supabase database
 async function addUrlToDatabase(url) {
   try {
@@ -62,6 +96,18 @@ async function addUrlToDatabase(url) {
     }
 
     const config = await loadSupabaseConfig();
+
+    // Check if URL already exists
+    const existsCheck = await urlExists(url);
+    if (existsCheck.exists) {
+      return {
+        success: false,
+        error: `URL already exists as #${existsCheck.number}`,
+        duplicate: true,
+        existingNumber: existsCheck.number
+      };
+    }
+
     const nextNumber = await getNextRowNumber();
 
     // Insert the new URL
@@ -226,20 +272,38 @@ chrome.commands.onCommand.addListener(async (command) => {
           updateBadge('✓', '#4caf50');
 
         } else {
-          // Show error notification (system)
-          chrome.notifications.create({
-            type: 'basic',
-            iconUrl: 'icon.png',
-            title: '✗ LinkCopier Error',
-            message: `Failed: ${result.error}`,
-            priority: 2
-          });
+          // Check if it's a duplicate
+          if (result.duplicate) {
+            // Show warning notification for duplicate (system)
+            chrome.notifications.create({
+              type: 'basic',
+              iconUrl: 'icon.png',
+              title: '⚠ URL Already Exists',
+              message: `This URL is already saved as #${result.existingNumber}`,
+              priority: 1
+            });
 
-          // Show on-page notification
-          await showPageNotification(tab.id, `✗ Failed: ${result.error}`, false);
+            // Show on-page notification (warning style)
+            await showPageNotification(tab.id, `⚠ Already saved as #${result.existingNumber}`, false);
 
-          // Update badge
-          updateBadge('✗', '#f44336');
+            // Update badge with warning
+            updateBadge('⚠', '#ff9800');
+          } else {
+            // Show error notification (system)
+            chrome.notifications.create({
+              type: 'basic',
+              iconUrl: 'icon.png',
+              title: '✗ LinkCopier Error',
+              message: `Failed: ${result.error}`,
+              priority: 2
+            });
+
+            // Show on-page notification
+            await showPageNotification(tab.id, `✗ Failed: ${result.error}`, false);
+
+            // Update badge
+            updateBadge('✗', '#f44336');
+          }
         }
       }
     } catch (error) {
