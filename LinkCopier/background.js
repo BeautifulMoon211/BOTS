@@ -131,6 +131,75 @@ async function testConnection() {
   }
 }
 
+// Show visual feedback on the page
+async function showPageNotification(tabId, message, isSuccess) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: tabId },
+      func: (msg, success) => {
+        // Remove any existing notification
+        const existing = document.getElementById('linkcopy-notification');
+        if (existing) existing.remove();
+
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.id = 'linkcopy-notification';
+        notification.style.cssText = `
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          background: ${success ? '#4caf50' : '#f44336'};
+          color: white;
+          padding: 16px 24px;
+          border-radius: 8px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+          z-index: 999999;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          font-size: 15px;
+          font-weight: 500;
+          animation: slideIn 0.3s ease-out;
+        `;
+        notification.textContent = msg;
+
+        // Add animation
+        const style = document.createElement('style');
+        style.textContent = `
+          @keyframes slideIn {
+            from { transform: translateX(400px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+          }
+          @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(400px); opacity: 0; }
+          }
+        `;
+        document.head.appendChild(style);
+        document.body.appendChild(notification);
+
+        // Auto-remove after 3 seconds
+        setTimeout(() => {
+          notification.style.animation = 'slideOut 0.3s ease-out';
+          setTimeout(() => notification.remove(), 300);
+        }, 3000);
+      },
+      args: [message, isSuccess]
+    });
+  } catch (error) {
+    console.log('Could not inject notification (page may not allow scripts):', error);
+  }
+}
+
+// Update extension badge
+function updateBadge(text, color) {
+  chrome.action.setBadgeText({ text: text });
+  chrome.action.setBadgeBackgroundColor({ color: color });
+
+  // Clear badge after 3 seconds
+  setTimeout(() => {
+    chrome.action.setBadgeText({ text: '' });
+  }, 3000);
+}
+
 // Listen for keyboard shortcut (F9 or Ctrl+Shift+U)
 chrome.commands.onCommand.addListener(async (command) => {
   if (command === 'copy-url-to-sheet') {
@@ -141,25 +210,49 @@ chrome.commands.onCommand.addListener(async (command) => {
         const result = await addUrlToDatabase(tab.url);
 
         if (result.success) {
-          // Show success notification
+          // Show success notification (system)
           chrome.notifications.create({
             type: 'basic',
             iconUrl: 'icon.png',
-            title: 'LinkCopier',
-            message: `✓ URL #${result.number} saved to database!`
+            title: '✓ LinkCopier Success',
+            message: `URL #${result.number} saved to database!`,
+            priority: 2
           });
+
+          // Show on-page notification
+          await showPageNotification(tab.id, `✓ URL #${result.number} saved!`, true);
+
+          // Update badge
+          updateBadge('✓', '#4caf50');
+
         } else {
-          // Show error notification
+          // Show error notification (system)
           chrome.notifications.create({
             type: 'basic',
             iconUrl: 'icon.png',
-            title: 'LinkCopier Error',
-            message: `✗ Failed: ${result.error}`
+            title: '✗ LinkCopier Error',
+            message: `Failed: ${result.error}`,
+            priority: 2
           });
+
+          // Show on-page notification
+          await showPageNotification(tab.id, `✗ Failed: ${result.error}`, false);
+
+          // Update badge
+          updateBadge('✗', '#f44336');
         }
       }
     } catch (error) {
       console.error('Error in command handler:', error);
+
+      // Show error notification
+      chrome.notifications.create({
+        type: 'basic',
+        iconUrl: 'icon.png',
+        title: '✗ LinkCopier Error',
+        message: `Error: ${error.message}`,
+        priority: 2
+      });
     }
   }
 });
