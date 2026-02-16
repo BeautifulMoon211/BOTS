@@ -26,8 +26,8 @@ HFONT  g_hCaptionFont = nullptr;                 // Segoe UI
 static std::wstring g_lastCaptionText;            // only update edit when this changes (preserve cursor/scroll)
 static std::wstring g_captionHistory;             // ALL captions accumulated since start (temp storage)
 static std::wstring g_previousCaption;            // Previous caption text for comparison
-static int          g_anchorCharIndex = 0;        // user-chosen start position in transcription
-static std::wstring g_anchorPattern;              // unique pattern to find anchor point
+static int          g_anchorCharIndex = 0;        // user-chosen start position in g_captionHistory
+static int          g_anchorHistoryIndex = 0;     // anchor position in g_captionHistory (what we actually use)
 static bool         g_anchorSetByUser = false;    // true if anchor was manually selected by user
 static std::wstring g_selectionToEnd;            // text from anchor to end (updated on selection change)
 static volatile long g_pasteInProgress = 0;      // re-entrancy guard for paste
@@ -43,13 +43,11 @@ std::wstring        GetLiveCaptionText();
 static BOOL CALLBACK FindLiveCaptionWindow(HWND hwnd, LPARAM lParam);
 static bool CollectTextFromElement(IUIAutomation* pAutomation, IUIAutomationElement* pElement, std::wstring& out, bool skipRootName);
 static bool IsUiChrome(const wchar_t* name);
-static void UpdateSelectionFromAnchorToEnd(HWND hEdit, bool updatePattern = false);
+static void UpdateSelectionFromAnchorToEnd(HWND hEdit, bool updateHistoryIndex = false);
 static void ApplyYellowHighlight(HWND hEdit);
 static void DoPasteWork();
 static LRESULT CALLBACK LowLevelKbHook(int nCode, WPARAM wParam, LPARAM lParam);
 static LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-static std::wstring ExtractAnchorPattern(const std::wstring& text, int anchorPos);
-static int FindAnchorByPattern(const std::wstring& text, const std::wstring& pattern);
 static bool PasteViaClipboard(const std::wstring& text);
 static void DoFindAndCopyWork();
 static void PrintStatus();
@@ -177,44 +175,7 @@ static void DoPasteWork() {
     InterlockedExchange(&g_pasteInProgress, 0);
 }
 
-// Extract a unique pattern from text around the anchor position (read backwards to find unique pattern)
-static std::wstring ExtractAnchorPattern(const std::wstring& text, int anchorPos) {
-    if (anchorPos <= 0 || anchorPos > (int)text.length()) return L"";
-
-    // Start with minimum pattern length and increase until unique or max length
-    const int MIN_PATTERN_LEN = 5;
-    const int MAX_PATTERN_LEN = 50;
-
-    for (int len = MIN_PATTERN_LEN; len <= MAX_PATTERN_LEN && len <= anchorPos; len++) {
-        int start = anchorPos - len;
-        std::wstring pattern = text.substr(start, len);
-
-        // Check if this pattern is unique (appears only once before anchorPos)
-        size_t firstOccurrence = text.find(pattern);
-        size_t lastOccurrence = text.rfind(pattern, anchorPos - 1);
-
-        if (firstOccurrence == lastOccurrence && firstOccurrence == (size_t)start) {
-            return pattern; // Found unique pattern
-        }
-    }
-
-    // If no unique pattern found, return the maximum length pattern
-    int len = (std::min)(MAX_PATTERN_LEN, anchorPos);
-    return text.substr(anchorPos - len, len);
-}
-
-// Find anchor position in text using the saved pattern
-static int FindAnchorByPattern(const std::wstring& text, const std::wstring& pattern) {
-    if (pattern.empty()) return 0;
-
-    size_t pos = text.find(pattern);
-    if (pos == std::wstring::npos) return 0;
-
-    // Return position after the pattern
-    return (int)(pos + pattern.length());
-}
-
-// NEW: Fast clipboard paste function
+// Fast clipboard paste function
 static bool PasteViaClipboard(const std::wstring& text) {
     if (text.empty()) return false;
 
@@ -300,41 +261,41 @@ static bool PasteViaClipboard(const std::wstring& text) {
     return true;
 }
 
-// Triggered on Ctrl+Shift+A: find anchor using pattern and copy from anchor to end
+// Triggered on Ctrl+Shift+A: copy from anchor position to end of g_captionHistory
 static void DoFindAndCopyWork() {
     if (InterlockedCompareExchange(&g_pasteInProgress, 1, 0) != 0) return;
 
-    if (!g_anchorPattern.empty() && !g_captionHistory.empty()) {
-        int foundPos = FindAnchorByPattern(g_captionHistory, g_anchorPattern);
-
+    if (!g_captionHistory.empty()) {
         WCHAR debugMsg[512];
-        swprintf_s(debugMsg, L"[Ctrl+Shift+A] Searching for pattern: \"%s\" | Found at position: %d | History length: %zu\n",
-            g_anchorPattern.c_str(), foundPos, g_captionHistory.length());
+        swprintf_s(debugMsg, L"[Ctrl+Shift+A] Anchor index: %d | History length: %zu\n",
+            g_anchorHistoryIndex, g_captionHistory.length());
         OutputDebugStringW(debugMsg);
 
-        if (foundPos > 0 && foundPos <= (int)g_captionHistory.length()) {
-            std::wstring textToCopy = g_captionHistory.substr(foundPos);
+        // Ensure anchor is within bounds
+        if (g_anchorHistoryIndex >= 0 && g_anchorHistoryIndex < (int)g_captionHistory.length()) {
+            std::wstring textToCopy = g_captionHistory.substr(g_anchorHistoryIndex);
 
             swprintf_s(debugMsg, L"[Ctrl+Shift+A] Copying %zu chars from anchor to end\n", textToCopy.length());
             OutputDebugStringW(debugMsg);
 
             PasteViaClipboard(textToCopy);
         } else {
-            OutputDebugStringW(L"[Ctrl+Shift+A] Pattern not found or invalid position!\n");
+            OutputDebugStringW(L"[Ctrl+Shift+A] Anchor index out of bounds!\n");
         }
     } else {
-        OutputDebugStringW(L"[Ctrl+Shift+A] No anchor pattern set or history is empty!\n");
+        OutputDebugStringW(L"[Ctrl+Shift+A] Caption history is empty!\n");
     }
 
     InterlockedExchange(&g_pasteInProgress, 0);
 }
 
-// Print the size of whole sentence and anchor pattern every 3 seconds
+// Print the size of whole sentence and anchor index every 3 seconds
 static void PrintStatus() {
     WCHAR msg[512];
-    swprintf_s(msg, L"[Status] Whole sentence size: %zu chars | Anchor pattern: \"%s\"\n",
+    swprintf_s(msg, L"[Status] History size: %zu chars | Anchor index: %d | User set: %s\n",
         g_captionHistory.length(),
-        g_anchorPattern.empty() ? L"(none)" : g_anchorPattern.c_str());
+        g_anchorHistoryIndex,
+        g_anchorSetByUser ? L"YES" : L"AUTO");
     OutputDebugStringW(msg);
 }
 
@@ -454,8 +415,8 @@ static LRESULT CALLBACK LowLevelKbHook(int nCode, WPARAM wParam, LPARAM lParam) 
 }
 
 // Set g_selectionToEnd and apply yellow highlight. No clipboard.
-// updatePattern: only extract pattern if true (when user manually selects)
-static void UpdateSelectionFromAnchorToEnd(HWND hEdit, bool updatePattern) {
+// updateHistoryIndex: if true, update g_anchorHistoryIndex (when user manually selects)
+static void UpdateSelectionFromAnchorToEnd(HWND hEdit, bool updateHistoryIndex) {
     if (!hEdit) return;
     int len = GetWindowTextLengthW(hEdit);
     if (len <= 0) { g_selectionToEnd.clear(); return; }
@@ -464,9 +425,14 @@ static void UpdateSelectionFromAnchorToEnd(HWND hEdit, bool updatePattern) {
     if (GetWindowTextW(hEdit, buf.data(), len + 1) > 0) {
         g_selectionToEnd.assign(buf.data() + g_anchorCharIndex, buf.data() + len);
 
-        // Extract anchor pattern ONLY when user manually selects with mouse
-        if (updatePattern && g_anchorCharIndex > 0 && !g_captionHistory.empty()) {
-            g_anchorPattern = ExtractAnchorPattern(g_captionHistory, g_anchorCharIndex);
+        // Since we now display full history, visual position = history position!
+        if (updateHistoryIndex) {
+            g_anchorHistoryIndex = g_anchorCharIndex;
+
+            WCHAR debugMsg[256];
+            swprintf_s(debugMsg, L"[Anchor] Position: %d (same in visual and history)\n",
+                g_anchorHistoryIndex);
+            OutputDebugStringW(debugMsg);
         }
     }
     ApplyYellowHighlight(hEdit);
@@ -481,13 +447,12 @@ LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
         SendMessageW(hWnd, EM_EXGETSEL, 0, (LPARAM)&cr);
         g_anchorCharIndex = (std::min)((int)cr.cpMin, (int)cr.cpMax);
         g_anchorSetByUser = true;  // User manually selected the anchor
-        UpdateSelectionFromAnchorToEnd(hWnd, true);  // true = update pattern (mouse selection)
+        UpdateSelectionFromAnchorToEnd(hWnd, true);  // true = update history index (mouse selection)
 
         // Print when mouse selects anchor
-        OutputDebugStringW(L"Mouse selected\n");
         WCHAR msg[512];
-        swprintf_s(msg, L"Anchor pattern: \"%s\"\n",
-            g_anchorPattern.empty() ? L"(none)" : g_anchorPattern.c_str());
+        swprintf_s(msg, L"[Mouse] Anchor set at visual pos: %d | History index: %d\n",
+            g_anchorCharIndex, g_anchorHistoryIndex);
         OutputDebugStringW(msg);
 
         return r;
@@ -694,11 +659,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
                 HWND hEdit = GetDlgItem(hWnd, IDC_CAPTION_EDIT);
                 if (hEdit) {
-                    SetWindowTextW(hEdit, g_lastCaptionText.c_str());
+                    // Display FULL HISTORY instead of just current caption
+                    SetWindowTextW(hEdit, g_captionHistory.c_str());
 
                     // Mark anchor as auto-set when text updates (unless user has manually set it)
                     if (!g_anchorSetByUser) {
-                        g_anchorCharIndex = 0;  // Auto anchor at start
+                        g_anchorCharIndex = 0;  // Auto anchor at start of visible text
+                        g_anchorHistoryIndex = 0;  // Auto anchor at start of history
                     }
 
                     UpdateSelectionFromAnchorToEnd(hEdit, false);
