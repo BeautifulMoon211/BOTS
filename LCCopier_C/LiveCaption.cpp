@@ -46,11 +46,11 @@ static bool IsUiChrome(const wchar_t* name);
 static void UpdateSelectionFromAnchorToEnd(HWND hEdit, bool updatePattern = false);
 static void ApplyYellowHighlight(HWND hEdit);
 static void DoPasteWork();
-static void TypeStringViaInput(const std::wstring& text);
 static LRESULT CALLBACK LowLevelKbHook(int nCode, WPARAM wParam, LPARAM lParam);
 static LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 static std::wstring ExtractAnchorPattern(const std::wstring& text, int anchorPos);
 static int FindAnchorByPattern(const std::wstring& text, const std::wstring& pattern);
+static bool PasteViaClipboard(const std::wstring& text);
 static void DoFindAndCopyWork();
 static void PrintStatus();
 static void UpdateCaptionHistory(const std::wstring& currentText);
@@ -170,28 +170,10 @@ static void ApplyYellowHighlight(HWND hEdit) {
     SendMessageW(hEdit, EM_EXSETSEL, 0, (LPARAM)&cr);
 }
 
-// Type the string into the foreground window using SendInput (no clipboard). Chunked for long text.
-static void TypeStringViaInput(const std::wstring& text) {
-    if (text.empty()) return;
-    constexpr size_t CHUNK = 80;
-    std::vector<INPUT> inputs;
-    inputs.reserve(CHUNK * 2);
-    for (size_t i = 0; i < text.size(); ) {
-        inputs.clear();
-        for (size_t j = 0; j < CHUNK && i < text.size(); j++, i++) {
-            INPUT down = {}; down.type = INPUT_KEYBOARD; down.ki.wVk = 0; down.ki.wScan = text[i]; down.ki.dwFlags = KEYEVENTF_UNICODE;
-            INPUT up   = {}; up.type   = INPUT_KEYBOARD; up.ki.wVk = 0; up.ki.wScan = text[i]; up.ki.dwFlags   = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
-            inputs.push_back(down); inputs.push_back(up);
-        }
-        if (!inputs.empty())
-            SendInput((UINT)inputs.size(), inputs.data(), sizeof(INPUT));
-    }
-}
-
 // Triggered on Ctrl+Shift+V key down only (via hook). Types g_selectionToEnd into foreground window; no clipboard.
 static void DoPasteWork() {
     if (InterlockedCompareExchange(&g_pasteInProgress, 1, 0) != 0) return;
-    TypeStringViaInput(g_selectionToEnd);
+    PasteViaClipboard(g_selectionToEnd);
     InterlockedExchange(&g_pasteInProgress, 0);
 }
 
@@ -232,6 +214,92 @@ static int FindAnchorByPattern(const std::wstring& text, const std::wstring& pat
     return (int)(pos + pattern.length());
 }
 
+// NEW: Fast clipboard paste function
+static bool PasteViaClipboard(const std::wstring& text) {
+    if (text.empty()) return false;
+
+    // Open clipboard
+    if (!OpenClipboard(g_hMainWnd)) return false;
+
+    // Save current clipboard content (optional - for restoration)
+    HANDLE hOldData = GetClipboardData(CF_UNICODETEXT);
+    std::wstring oldClipboard;
+    if (hOldData) {
+        wchar_t* pOldText = (wchar_t*)GlobalLock(hOldData);
+        if (pOldText) {
+            oldClipboard = pOldText;
+            GlobalUnlock(hOldData);
+        }
+    }
+
+    EmptyClipboard();
+
+    // Allocate global memory for new text
+    size_t size = (text.length() + 1) * sizeof(wchar_t);
+    HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, size);
+    if (!hMem) {
+        CloseClipboard();
+        return false;
+    }
+
+    // Copy text to global memory
+    wchar_t* pMem = (wchar_t*)GlobalLock(hMem);
+    if (pMem) {
+        wcscpy_s(pMem, text.length() + 1, text.c_str());
+        GlobalUnlock(hMem);
+    }
+
+    // Set clipboard data
+    SetClipboardData(CF_UNICODETEXT, hMem);
+    CloseClipboard();
+
+    // Simulate Ctrl+V to paste
+    Sleep(10); // Small delay to ensure clipboard is ready
+    INPUT inputs[4] = {};
+    
+    // Ctrl down
+    inputs[0].type = INPUT_KEYBOARD;
+    inputs[0].ki.wVk = VK_CONTROL;
+    
+    // V down
+    inputs[1].type = INPUT_KEYBOARD;
+    inputs[1].ki.wVk = 'V';
+    
+    // V up
+    inputs[2].type = INPUT_KEYBOARD;
+    inputs[2].ki.wVk = 'V';
+    inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
+    
+    // Ctrl up
+    inputs[3].type = INPUT_KEYBOARD;
+    inputs[3].ki.wVk = VK_CONTROL;
+    inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
+    
+    SendInput(4, inputs, sizeof(INPUT));
+
+    // Optional: Restore old clipboard after a delay
+    // (You can do this in a background thread or skip it)
+    Sleep(50); // Wait for paste to complete
+    if (!oldClipboard.empty()) {
+        if (OpenClipboard(g_hMainWnd)) {
+            EmptyClipboard();
+            size_t oldSize = (oldClipboard.length() + 1) * sizeof(wchar_t);
+            HGLOBAL hOldMem = GlobalAlloc(GMEM_MOVEABLE, oldSize);
+            if (hOldMem) {
+                wchar_t* pOldMem = (wchar_t*)GlobalLock(hOldMem);
+                if (pOldMem) {
+                    wcscpy_s(pOldMem, oldClipboard.length() + 1, oldClipboard.c_str());
+                    GlobalUnlock(hOldMem);
+                    SetClipboardData(CF_UNICODETEXT, hOldMem);
+                }
+            }
+            CloseClipboard();
+        }
+    }
+
+    return true;
+}
+
 // Triggered on Ctrl+Shift+A: find anchor using pattern and copy from anchor to end
 static void DoFindAndCopyWork() {
     if (InterlockedCompareExchange(&g_pasteInProgress, 1, 0) != 0) return;
@@ -250,7 +318,7 @@ static void DoFindAndCopyWork() {
             swprintf_s(debugMsg, L"[Ctrl+Shift+A] Copying %zu chars from anchor to end\n", textToCopy.length());
             OutputDebugStringW(debugMsg);
 
-            TypeStringViaInput(textToCopy);
+            PasteViaClipboard(textToCopy);
         } else {
             OutputDebugStringW(L"[Ctrl+Shift+A] Pattern not found or invalid position!\n");
         }
