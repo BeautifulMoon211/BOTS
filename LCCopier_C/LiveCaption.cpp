@@ -13,7 +13,6 @@
 #define IDT_PRINT_STATUS  2
 #define POLL_INTERVAL_MS  400
 #define PRINT_INTERVAL_MS 3000
-#define WM_APP_DO_PASTE  (WM_APP + 2)
 #define WM_APP_FIND_AND_COPY  (WM_APP + 3)
 
 // Global Variables:
@@ -28,7 +27,6 @@ static std::wstring g_previousCaption;            // Previous caption text for c
 static int          g_anchorCharIndex = 0;        // user-chosen start position in g_captionHistory
 static int          g_anchorHistoryIndex = 0;     // anchor position in g_captionHistory (what we actually use)
 static bool         g_anchorSetByUser = false;    // true if anchor was manually selected by user
-static std::wstring g_selectionToEnd;            // text from anchor to end (updated on selection change)
 static volatile long g_pasteInProgress = 0;      // re-entrancy guard for paste
 static HWND g_hMainWnd = nullptr;
 static HHOOK g_hKbHook = nullptr;
@@ -42,9 +40,7 @@ std::wstring        GetLiveCaptionText();
 static BOOL CALLBACK FindLiveCaptionWindow(HWND hwnd, LPARAM lParam);
 static bool CollectTextFromElement(IUIAutomation* pAutomation, IUIAutomationElement* pElement, std::wstring& out, bool skipRootName);
 static bool IsUiChrome(const wchar_t* name);
-static void UpdateSelectionFromAnchorToEnd(HWND hEdit, bool updateHistoryIndex = false);
 static void ApplyYellowHighlight(HWND hEdit);
-static void DoPasteWork();
 static LRESULT CALLBACK LowLevelKbHook(int nCode, WPARAM wParam, LPARAM lParam);
 static LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 static bool PasteViaClipboard(const std::wstring& text);
@@ -201,13 +197,6 @@ static void ApplyYellowHighlight(HWND hEdit) {
 
 	// Restore scroll position to prevent jumping
 	SendMessageW(hEdit, EM_SETSCROLLPOS, 0, (LPARAM)&ptScroll);
-}
-
-// Triggered on Ctrl+Shift+V key down only (via hook). Types g_selectionToEnd into foreground window; no clipboard.
-static void DoPasteWork() {
-	if (InterlockedCompareExchange(&g_pasteInProgress, 1, 0) != 0) return;
-	PasteViaClipboard(g_selectionToEnd);
-	InterlockedExchange(&g_pasteInProgress, 0);
 }
 
 // Fast clipboard paste function
@@ -438,12 +427,6 @@ static LRESULT CALLBACK LowLevelKbHook(int nCode, WPARAM wParam, LPARAM lParam) 
 		bool ctrlDown = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
 		bool shiftDown = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
 
-		// Ctrl+Shift+V: paste selection
-		if (p->vkCode == 'V' && ctrlDown && shiftDown) {
-			PostMessageW(g_hMainWnd, WM_APP_DO_PASTE, 0, 0);
-			return 1;
-		}
-
 		// Ctrl+Shift+A: find anchor and copy
 		if (p->vkCode == 'A' && ctrlDown && shiftDown) {
 			PostMessageW(g_hMainWnd, WM_APP_FIND_AND_COPY, 0, 0);
@@ -451,30 +434,6 @@ static LRESULT CALLBACK LowLevelKbHook(int nCode, WPARAM wParam, LPARAM lParam) 
 		}
 	}
 	return CallNextHookEx(g_hKbHook, nCode, wParam, lParam);
-}
-
-// Set g_selectionToEnd and apply yellow highlight. No clipboard.
-// updateHistoryIndex: if true, update g_anchorHistoryIndex (when user manually selects)
-static void UpdateSelectionFromAnchorToEnd(HWND hEdit, bool updateHistoryIndex) {
-	if (!hEdit) return;
-	int len = GetWindowTextLengthW(hEdit);
-	if (len <= 0) { g_selectionToEnd.clear(); return; }
-	g_anchorCharIndex = (std::min)(g_anchorCharIndex, len);
-	std::vector<wchar_t> buf(len + 1);
-	if (GetWindowTextW(hEdit, buf.data(), len + 1) > 0) {
-		g_selectionToEnd.assign(buf.data() + g_anchorCharIndex, buf.data() + len);
-
-		// Since we now display full history, visual position = history position!
-		if (updateHistoryIndex) {
-			g_anchorHistoryIndex = g_anchorCharIndex;
-
-			WCHAR debugMsg[256];
-			swprintf_s(debugMsg, L"[Anchor] Position: %d (same in visual and history)\n",
-				g_anchorHistoryIndex);
-			OutputDebugStringW(debugMsg);
-		}
-	}
-	ApplyYellowHighlight(hEdit);
 }
 
 static WNDPROC g_origEditProc = nullptr;
@@ -510,7 +469,9 @@ LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		SendMessageW(hWnd, EM_EXGETSEL, 0, (LPARAM)&cr);
 		g_anchorCharIndex = (std::min)((int)cr.cpMin, (int)cr.cpMax);
 		g_anchorSetByUser = true;  // User manually selected the anchor
-		UpdateSelectionFromAnchorToEnd(hWnd, true);  // true = update history index (mouse selection)
+
+		// Update history index to match visual position
+		g_anchorHistoryIndex = g_anchorCharIndex;
 
 		// Print when mouse selects anchor
 		WCHAR msg[512];
@@ -518,11 +479,10 @@ LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 			g_anchorCharIndex, g_anchorHistoryIndex);
 		OutputDebugStringW(msg);
 
+		// Apply yellow highlighting
+		ApplyYellowHighlight(hWnd);
+
 		return r;
-	}
-	if (uMsg == WM_KEYDOWN && wParam == 'V' && (GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_SHIFT) & 0x8000)) {
-		PostMessageW(GetParent(hWnd), WM_APP_DO_PASTE, 0, 0);
-		return 0;
 	}
 	if (uMsg == WM_KEYDOWN && wParam == 'A' && (GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_SHIFT) & 0x8000)) {
 		PostMessageW(GetParent(hWnd), WM_APP_FIND_AND_COPY, 0, 0);
@@ -691,9 +651,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		g_hKbHook = SetWindowsHookExW(WH_KEYBOARD_LL, LowLevelKbHook, nullptr, 0);
 	}
 	break;
-	case WM_APP_DO_PASTE:
-		DoPasteWork();
-		return 0;
 	case WM_APP_FIND_AND_COPY:
 		DoFindAndCopyWork();
 		return 0;
@@ -737,7 +694,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 						g_anchorHistoryIndex = 0;  // Auto anchor at start of history
 					}
 
-					UpdateSelectionFromAnchorToEnd(hEdit, false);
+					// Apply yellow highlighting
+					ApplyYellowHighlight(hEdit);
 
 					// Restore scroll position if user has scrolled up
 					if (g_userScrolledUp) {
