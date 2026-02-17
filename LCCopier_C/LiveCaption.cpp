@@ -33,6 +33,7 @@ static std::wstring g_selectionToEnd;            // text from anchor to end (upd
 static volatile long g_pasteInProgress = 0;      // re-entrancy guard for paste
 static HWND g_hMainWnd = nullptr;
 static HHOOK g_hKbHook = nullptr;
+static bool g_userScrolledUp = false;            // true if user scrolled away from bottom
 
 // Forward declarations
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -130,9 +131,31 @@ static bool CollectTextFromElement(IUIAutomation* pAutomation, IUIAutomationElem
     return false;
 }
 
+// Check if the edit control is scrolled to the bottom
+static bool IsScrolledToBottom(HWND hEdit) {
+    if (!hEdit) return true;
+
+    SCROLLINFO si = {};
+    si.cbSize = sizeof(SCROLLINFO);
+    si.fMask = SIF_POS | SIF_RANGE | SIF_PAGE;
+
+    if (!GetScrollInfo(hEdit, SB_VERT, &si)) return true;
+
+    // Calculate max scroll position
+    int maxScroll = si.nMax - (int)si.nPage + 1;
+
+    // Consider "at bottom" if within 5 lines of the bottom
+    return (si.nPos >= maxScroll - 5);
+}
+
 // Scroll the edit so the bottom of the text is visible (keeps view at end as new text arrives).
+// Only scrolls if user hasn't scrolled up manually.
 static void ScrollEditToBottom(HWND hEdit) {
     if (!hEdit) return;
+
+    // Don't auto-scroll if user has scrolled up
+    if (g_userScrolledUp) return;
+
     int len = GetWindowTextLengthW(hEdit);
     if (len <= 0) return;
     SendMessageW(hEdit, EM_SETSEL, (WPARAM)len, (LPARAM)len);
@@ -146,16 +169,25 @@ static void ApplyYellowHighlight(HWND hEdit) {
     int len = GetWindowTextLengthW(hEdit);
     if (len <= 0) return;
     g_anchorCharIndex = (std::min)(g_anchorCharIndex, len);
+
+    // Save current scroll position to prevent jumping
+    POINT ptScroll = {};
+    SendMessageW(hEdit, EM_GETSCROLLPOS, 0, (LPARAM)&ptScroll);
+
     CHARRANGE cr = {};
     CHARFORMAT2W cf = {};
     cf.cbSize = sizeof(cf);
+
+    // Format everything before anchor as white background
     cr.cpMin = 0;
-    cr.cpMax = -1;
+    cr.cpMax = g_anchorCharIndex;
     SendMessageW(hEdit, EM_EXSETSEL, 0, (LPARAM)&cr);
     cf.dwMask = CFM_BACKCOLOR | CFM_COLOR;
     cf.crTextColor = RGB(0, 0, 0);
     cf.crBackColor = RGB(255, 255, 255);
     SendMessageW(hEdit, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf);
+
+    // Format everything from anchor to end as yellow background
     cr.cpMin = g_anchorCharIndex;
     cr.cpMax = len;
     SendMessageW(hEdit, EM_EXSETSEL, 0, (LPARAM)&cr);
@@ -163,9 +195,14 @@ static void ApplyYellowHighlight(HWND hEdit) {
     cf.crTextColor = RGB(0, 0, 0);
     cf.crBackColor = RGB(255, 220, 100);
     SendMessageW(hEdit, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf);
-    cr.cpMin = len;
-    cr.cpMax = len;
+
+    // Set caret to anchor position (not end!)
+    cr.cpMin = g_anchorCharIndex;
+    cr.cpMax = g_anchorCharIndex;
     SendMessageW(hEdit, EM_EXSETSEL, 0, (LPARAM)&cr);
+
+    // Restore scroll position to prevent jumping
+    SendMessageW(hEdit, EM_SETSCROLLPOS, 0, (LPARAM)&ptScroll);
 }
 
 // Triggered on Ctrl+Shift+V key down only (via hook). Types g_selectionToEnd into foreground window; no clipboard.
@@ -441,6 +478,29 @@ static void UpdateSelectionFromAnchorToEnd(HWND hEdit, bool updateHistoryIndex) 
 static WNDPROC g_origEditProc = nullptr;
 
 LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    // Detect user scrolling (mouse wheel, scrollbar, arrow keys)
+    if (uMsg == WM_MOUSEWHEEL || uMsg == WM_VSCROLL ||
+        (uMsg == WM_KEYDOWN && (wParam == VK_UP || wParam == VK_DOWN || wParam == VK_PRIOR || wParam == VK_NEXT))) {
+
+        // Let the default handler process the scroll first
+        LRESULT r = CallWindowProcW(g_origEditProc, hWnd, uMsg, wParam, lParam);
+
+        // Check if user is at bottom after scrolling
+        bool atBottom = IsScrolledToBottom(hWnd);
+
+        if (atBottom && g_userScrolledUp) {
+            // User scrolled back to bottom - resume auto-scroll
+            g_userScrolledUp = false;
+            OutputDebugStringW(L"[Scroll] Resumed auto-scroll (user at bottom)\n");
+        } else if (!atBottom && !g_userScrolledUp) {
+            // User scrolled up - pause auto-scroll
+            g_userScrolledUp = true;
+            OutputDebugStringW(L"[Scroll] Paused auto-scroll (user scrolled up)\n");
+        }
+
+        return r;
+    }
+
     if (uMsg == WM_LBUTTONUP) {
         LRESULT r = CallWindowProcW(g_origEditProc, hWnd, uMsg, wParam, lParam);
         CHARRANGE cr = {};
@@ -659,6 +719,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
                 HWND hEdit = GetDlgItem(hWnd, IDC_CAPTION_EDIT);
                 if (hEdit) {
+                    // Save scroll position if user has scrolled up
+                    POINT ptScroll = {};
+                    if (g_userScrolledUp) {
+                        SendMessageW(hEdit, EM_GETSCROLLPOS, 0, (LPARAM)&ptScroll);
+                    }
+
                     // Display FULL HISTORY instead of just current caption
                     SetWindowTextW(hEdit, g_captionHistory.c_str());
 
@@ -669,7 +735,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     }
 
                     UpdateSelectionFromAnchorToEnd(hEdit, false);
-                    ScrollEditToBottom(hEdit);
+
+                    // Restore scroll position if user has scrolled up
+                    if (g_userScrolledUp) {
+                        SendMessageW(hEdit, EM_SETSCROLLPOS, 0, (LPARAM)&ptScroll);
+                    } else {
+                        // Only auto-scroll if user is at bottom
+                        ScrollEditToBottom(hEdit);
+                    }
                 }
             }
         }
