@@ -10,9 +10,7 @@
 
 #define MAX_LOADSTRING 100
 #define IDT_POLL_CAPTION  1
-#define IDT_PRINT_STATUS  2
 #define POLL_INTERVAL_MS  400
-#define PRINT_INTERVAL_MS 3000
 #define WM_APP_FIND_AND_COPY  (WM_APP + 3)
 
 // Global Variables:
@@ -45,7 +43,6 @@ static LRESULT CALLBACK LowLevelKbHook(int nCode, WPARAM wParam, LPARAM lParam);
 static LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 static bool PasteViaClipboard(const std::wstring& text);
 static void DoFindAndCopyWork();
-static void PrintStatus();
 static void UpdateCaptionHistory(const std::wstring& currentText);
 
 // --- UI Automation: find Live Caption window and read its text ---
@@ -290,39 +287,14 @@ static void DoFindAndCopyWork() {
 	if (InterlockedCompareExchange(&g_pasteInProgress, 1, 0) != 0) return;
 
 	if (!g_captionHistory.empty()) {
-		WCHAR debugMsg[512];
-		swprintf_s(debugMsg, L"[Ctrl+Shift+A] Anchor index: %d | History length: %zu\n",
-			g_anchorHistoryIndex, g_captionHistory.length());
-		OutputDebugStringW(debugMsg);
-
 		// Ensure anchor is within bounds
 		if (g_anchorHistoryIndex >= 0 && g_anchorHistoryIndex < (int)g_captionHistory.length()) {
 			std::wstring textToCopy = g_captionHistory.substr(g_anchorHistoryIndex);
-
-			swprintf_s(debugMsg, L"[Ctrl+Shift+A] Copying %zu chars from anchor to end\n", textToCopy.length());
-			OutputDebugStringW(debugMsg);
-
 			PasteViaClipboard(textToCopy);
 		}
-		else {
-			OutputDebugStringW(L"[Ctrl+Shift+A] Anchor index out of bounds!\n");
-		}
-	}
-	else {
-		OutputDebugStringW(L"[Ctrl+Shift+A] Caption history is empty!\n");
 	}
 
 	InterlockedExchange(&g_pasteInProgress, 0);
-}
-
-// Print the size of whole sentence and anchor index every 3 seconds
-static void PrintStatus() {
-	WCHAR msg[512];
-	swprintf_s(msg, L"[Status] History size: %zu chars | Anchor index: %d | User set: %s\n",
-		g_captionHistory.length(),
-		g_anchorHistoryIndex,
-		g_anchorSetByUser ? L"YES" : L"AUTO");
-	OutputDebugStringW(msg);
 }
 
 // Detect new words by finding a pattern from the end of previous text in current text
@@ -452,12 +424,10 @@ LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		if (atBottom && g_userScrolledUp) {
 			// User scrolled back to bottom - resume auto-scroll
 			g_userScrolledUp = false;
-			OutputDebugStringW(L"[Scroll] Resumed auto-scroll (user at bottom)\n");
 		}
 		else if (!atBottom && !g_userScrolledUp) {
 			// User scrolled up - pause auto-scroll
 			g_userScrolledUp = true;
-			OutputDebugStringW(L"[Scroll] Paused auto-scroll (user scrolled up)\n");
 		}
 
 		return r;
@@ -472,12 +442,6 @@ LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 
 		// Update history index to match visual position
 		g_anchorHistoryIndex = g_anchorCharIndex;
-
-		// Print when mouse selects anchor
-		WCHAR msg[512];
-		swprintf_s(msg, L"[Mouse] Anchor set at visual pos: %d | History index: %d\n",
-			g_anchorCharIndex, g_anchorHistoryIndex);
-		OutputDebugStringW(msg);
 
 		// Apply yellow highlighting
 		ApplyYellowHighlight(hWnd);
@@ -645,7 +609,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			SendMessageW(hEdit, WM_SETFONT, (WPARAM)g_hCaptionFont, TRUE);
 			g_origEditProc = (WNDPROC)SetWindowLongPtrW(hEdit, GWLP_WNDPROC, (LONG_PTR)EditSubclassProc);
 			SetTimer(hWnd, IDT_POLL_CAPTION, POLL_INTERVAL_MS, nullptr);
-			SetTimer(hWnd, IDT_PRINT_STATUS, PRINT_INTERVAL_MS, nullptr);
 		}
 		g_hMainWnd = hWnd;
 		g_hKbHook = SetWindowsHookExW(WH_KEYBOARD_LL, LowLevelKbHook, nullptr, 0);
@@ -708,9 +671,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				}
 			}
 		}
-		else if (wParam == IDT_PRINT_STATUS) {
-			PrintStatus();
-		}
 		break;
 	case WM_COMMAND:
 		return DefWindowProc(hWnd, message, wParam, lParam);
@@ -724,7 +684,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_DESTROY:
 		if (g_hKbHook) { UnhookWindowsHookEx(g_hKbHook); g_hKbHook = nullptr; }
 		KillTimer(hWnd, IDT_POLL_CAPTION);
-		KillTimer(hWnd, IDT_PRINT_STATUS);
 		if (g_hEditBrush) { DeleteObject(g_hEditBrush); g_hEditBrush = nullptr; }
 		if (g_hCaptionFont) { DeleteObject(g_hCaptionFont); g_hCaptionFont = nullptr; }
 		PostQuitMessage(0);
