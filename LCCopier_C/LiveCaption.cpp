@@ -1,13 +1,4 @@
-#include "framework.h"
 #include "LiveCaption.h"
-#include <string>
-#include <vector>
-#include <algorithm>
-
-#define MAX_LOADSTRING 100
-#define IDT_POLL_CAPTION 1
-#define POLL_INTERVAL_MS 400
-#define WM_APP_FIND_AND_COPY (WM_APP + 3)
 
 HINSTANCE hInst;
 WCHAR szTitle[MAX_LOADSTRING];
@@ -424,6 +415,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		if (hEdit) {
 			SendMessageW(hEdit, EM_SETBKGNDCOLOR, 0, (LPARAM)RGB(255, 255, 255));
 			SendMessageW(hEdit, WM_SETFONT, (WPARAM)g_hCaptionFont, TRUE);
+			SendMessageW(hEdit, EM_HIDESELECTION, TRUE, FALSE);
+			SendMessageW(hEdit, WM_SETREDRAW, FALSE, 0);
 			g_origEditProc = (WNDPROC)SetWindowLongPtrW(hEdit, GWLP_WNDPROC, (LONG_PTR)EditSubclassProc);
 			SetTimer(hWnd, IDT_POLL_CAPTION, POLL_INTERVAL_MS, nullptr);
 		}
@@ -456,6 +449,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				g_lastCaptionText = std::move(text);
 				HWND hEdit = GetDlgItem(hWnd, IDC_CAPTION_EDIT);
 				if (hEdit) {
+					SendMessageW(hEdit, WM_SETREDRAW, FALSE, 0);
 					POINT ptScroll = {};
 					if (g_userScrolledUp) {
 						SendMessageW(hEdit, EM_GETSCROLLPOS, 0, (LPARAM)&ptScroll);
@@ -472,6 +466,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					else {
 						ScrollEditToBottom(hEdit);
 					}
+					SendMessageW(hEdit, WM_SETREDRAW, TRUE, 0);
+					InvalidateRect(hEdit, nullptr, TRUE);
 				}
 			}
 		}
