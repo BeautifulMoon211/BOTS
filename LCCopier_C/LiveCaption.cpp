@@ -1,7 +1,3 @@
-// LiveCaption.cpp : Defines the entry point for the application.
-// Reads text from Windows built-in Live Caption and shows it in a styled text box.
-//
-
 #include "framework.h"
 #include "LiveCaption.h"
 #include <string>
@@ -9,32 +5,29 @@
 #include <algorithm>
 
 #define MAX_LOADSTRING 100
-#define IDT_POLL_CAPTION  1
-#define POLL_INTERVAL_MS  400
-#define WM_APP_FIND_AND_COPY  (WM_APP + 3)
+#define IDT_POLL_CAPTION 1
+#define POLL_INTERVAL_MS 400
+#define WM_APP_FIND_AND_COPY (WM_APP + 3)
 
-// Global Variables:
-HINSTANCE hInst;                                // current instance
-WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
-WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
-HBRUSH g_hEditBrush = nullptr;                   // dark background for edit (Live Caption style)
-HFONT  g_hCaptionFont = nullptr;                 // Segoe UI
-static std::wstring g_lastCaptionText;            // only update edit when this changes (preserve cursor/scroll)
-static std::wstring g_captionHistory;             // ALL captions accumulated since start (temp storage)
-static std::wstring g_previousCaption;            // Previous caption text for comparison
-static int          g_anchorCharIndex = 0;        // user-chosen start position in g_captionHistory
-static int          g_anchorHistoryIndex = 0;     // anchor position in g_captionHistory (what we actually use)
-static bool         g_anchorSetByUser = false;    // true if anchor was manually selected by user
-static volatile long g_pasteInProgress = 0;      // re-entrancy guard for paste
+HINSTANCE hInst;
+WCHAR szTitle[MAX_LOADSTRING];
+WCHAR szWindowClass[MAX_LOADSTRING];
+HBRUSH g_hEditBrush = nullptr;
+HFONT g_hCaptionFont = nullptr;
+static std::wstring g_lastCaptionText;
+static std::wstring g_captionHistory;
+static std::wstring g_previousCaption;
+static int g_anchorCharIndex = 0;
+static int g_anchorHistoryIndex = 0;
+static bool g_anchorSetByUser = false;
+static volatile long g_pasteInProgress = 0;
 static HWND g_hMainWnd = nullptr;
 static HHOOK g_hKbHook = nullptr;
-static bool g_userScrolledUp = false;            // true if user scrolled away from bottom
-
-// Forward declarations
-ATOM                MyRegisterClass(HINSTANCE hInstance);
-BOOL                InitInstance(HINSTANCE, int);
-LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
-std::wstring        GetLiveCaptionText();
+static bool g_userScrolledUp = false;
+ATOM MyRegisterClass(HINSTANCE hInstance);
+BOOL InitInstance(HINSTANCE, int);
+LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
+std::wstring GetLiveCaptionText();
 static BOOL CALLBACK FindLiveCaptionWindow(HWND hwnd, LPARAM lParam);
 static bool CollectTextFromElement(IUIAutomation* pAutomation, IUIAutomationElement* pElement, std::wstring& out, bool skipRootName);
 static bool IsUiChrome(const wchar_t* name);
@@ -45,7 +38,6 @@ static bool PasteViaClipboard(const std::wstring& text);
 static void DoFindAndCopyWork();
 static void UpdateCaptionHistory(const std::wstring& currentText);
 
-// --- UI Automation: find Live Caption window and read its text ---
 static BOOL CALLBACK FindLiveCaptionWindow(HWND hwnd, LPARAM lParam) {
 	WCHAR title[256] = {};
 	if (!GetWindowTextW(hwnd, title, (int)std::size(title))) return TRUE;
@@ -53,12 +45,11 @@ static BOOL CALLBACK FindLiveCaptionWindow(HWND hwnd, LPARAM lParam) {
 	std::transform(t.begin(), t.end(), t.begin(), ::towlower);
 	if (t.find(L"live caption") != std::wstring::npos) {
 		*reinterpret_cast<HWND*>(lParam) = hwnd;
-		return FALSE; // stop enumeration
+		return FALSE;
 	}
 	return TRUE;
 }
 
-// Skip window title and other Live Caption UI labels - we only want the transcription.
 static bool IsUiChrome(const wchar_t* name) {
 	if (!name || !*name) return true;
 	std::wstring s(name);
@@ -66,11 +57,10 @@ static bool IsUiChrome(const wchar_t* name) {
 	if (s.find(L"live caption") != std::wstring::npos) return true;
 	if (s == L"settings" || s == L"position" || s == L"preferences") return true;
 	if (s.find(L"caption style") != std::wstring::npos) return true;
-	if (s.find(L"edit") == 0 && s.length() <= 5) return true; // "Edit" button
+	if (s.find(L"edit") == 0 && s.length() <= 5) return true;
 	return false;
 }
 
-// Returns true when we've found the transcription and set 'out' (caller should stop).
 static bool CollectTextFromElement(IUIAutomation* pAutomation, IUIAutomationElement* pElement, std::wstring& out, bool skipRootName) {
 	IUIAutomationTextPattern* pTextPattern = nullptr;
 	HRESULT hr = pElement->GetCurrentPatternAs(UIA_TextPatternId, __uuidof(IUIAutomationTextPattern), reinterpret_cast<void**>(&pTextPattern));
@@ -81,12 +71,11 @@ static bool CollectTextFromElement(IUIAutomation* pAutomation, IUIAutomationElem
 			if (SUCCEEDED(pRange->GetText(-1, &bstr)) && bstr) {
 				std::wstring candidate(bstr);
 				SysFreeString(bstr);
-				// Use this text only if it looks like transcription (not UI chrome)
 				if (!candidate.empty() && !IsUiChrome(candidate.c_str())) {
 					out = candidate;
 					pRange->Release();
 					pTextPattern->Release();
-					return true; // found transcription, stop
+					return true;
 				}
 			}
 			pRange->Release();
@@ -110,7 +99,7 @@ static bool CollectTextFromElement(IUIAutomation* pAutomation, IUIAutomationElem
 			if (CollectTextFromElement(pAutomation, pNext, out, false)) {
 				pNext->Release();
 				if (pWalker) pWalker->Release();
-				return true; // child found transcription
+				return true;
 			}
 			IUIAutomationElement* pSibling = nullptr;
 			pWalker->GetNextSiblingElement(pNext, &pSibling);
@@ -122,31 +111,19 @@ static bool CollectTextFromElement(IUIAutomation* pAutomation, IUIAutomationElem
 	return false;
 }
 
-// Check if the edit control is scrolled to the bottom
 static bool IsScrolledToBottom(HWND hEdit) {
 	if (!hEdit) return true;
-
 	SCROLLINFO si = {};
 	si.cbSize = sizeof(SCROLLINFO);
 	si.fMask = SIF_POS | SIF_RANGE | SIF_PAGE;
-
 	if (!GetScrollInfo(hEdit, SB_VERT, &si)) return true;
-
-	// Calculate max scroll position
 	int maxScroll = si.nMax - (int)si.nPage + 1;
-
-	// Consider "at bottom" if within 5 lines of the bottom
 	return (si.nPos >= maxScroll - 5);
 }
 
-// Scroll the edit so the bottom of the text is visible (keeps view at end as new text arrives).
-// Only scrolls if user hasn't scrolled up manually.
 static void ScrollEditToBottom(HWND hEdit) {
 	if (!hEdit) return;
-
-	// Don't auto-scroll if user has scrolled up
 	if (g_userScrolledUp) return;
-
 	int len = GetWindowTextLengthW(hEdit);
 	if (len <= 0) return;
 	SendMessageW(hEdit, EM_SETSEL, (WPARAM)len, (LPARAM)len);
@@ -154,22 +131,16 @@ static void ScrollEditToBottom(HWND hEdit) {
 	SendMessageW(hEdit, WM_VSCROLL, SB_BOTTOM, 0);
 }
 
-// Apply yellow background to (g_anchorCharIndex, end). Rest is black on white. No blue selection highlight.
 static void ApplyYellowHighlight(HWND hEdit) {
 	if (!hEdit) return;
 	int len = GetWindowTextLengthW(hEdit);
 	if (len <= 0) return;
 	g_anchorCharIndex = (std::min)(g_anchorCharIndex, len);
-
-	// Save current scroll position to prevent jumping
 	POINT ptScroll = {};
 	SendMessageW(hEdit, EM_GETSCROLLPOS, 0, (LPARAM)&ptScroll);
-
 	CHARRANGE cr = {};
 	CHARFORMAT2W cf = {};
 	cf.cbSize = sizeof(cf);
-
-	// Format everything before anchor as white background
 	cr.cpMin = 0;
 	cr.cpMax = g_anchorCharIndex;
 	SendMessageW(hEdit, EM_EXSETSEL, 0, (LPARAM)&cr);
@@ -177,8 +148,6 @@ static void ApplyYellowHighlight(HWND hEdit) {
 	cf.crTextColor = RGB(0, 0, 0);
 	cf.crBackColor = RGB(255, 255, 255);
 	SendMessageW(hEdit, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf);
-
-	// Format everything from anchor to end as yellow background
 	cr.cpMin = g_anchorCharIndex;
 	cr.cpMax = len;
 	SendMessageW(hEdit, EM_EXSETSEL, 0, (LPARAM)&cr);
@@ -186,24 +155,15 @@ static void ApplyYellowHighlight(HWND hEdit) {
 	cf.crTextColor = RGB(0, 0, 0);
 	cf.crBackColor = RGB(255, 220, 100);
 	SendMessageW(hEdit, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf);
-
-	// Set caret to anchor position (not end!)
 	cr.cpMin = g_anchorCharIndex;
 	cr.cpMax = g_anchorCharIndex;
 	SendMessageW(hEdit, EM_EXSETSEL, 0, (LPARAM)&cr);
-
-	// Restore scroll position to prevent jumping
 	SendMessageW(hEdit, EM_SETSCROLLPOS, 0, (LPARAM)&ptScroll);
 }
 
-// Fast clipboard paste function
 static bool PasteViaClipboard(const std::wstring& text) {
 	if (text.empty()) return false;
-
-	// Open clipboard
 	if (!OpenClipboard(g_hMainWnd)) return false;
-
-	// Save current clipboard content (optional - for restoration)
 	HANDLE hOldData = GetClipboardData(CF_UNICODETEXT);
 	std::wstring oldClipboard;
 	if (hOldData) {
@@ -213,55 +173,34 @@ static bool PasteViaClipboard(const std::wstring& text) {
 			GlobalUnlock(hOldData);
 		}
 	}
-
 	EmptyClipboard();
-
-	// Allocate global memory for new text
 	size_t size = (text.length() + 1) * sizeof(wchar_t);
 	HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, size);
 	if (!hMem) {
 		CloseClipboard();
 		return false;
 	}
-
-	// Copy text to global memory
 	wchar_t* pMem = (wchar_t*)GlobalLock(hMem);
 	if (pMem) {
 		wcscpy_s(pMem, text.length() + 1, text.c_str());
 		GlobalUnlock(hMem);
 	}
-
-	// Set clipboard data
 	SetClipboardData(CF_UNICODETEXT, hMem);
 	CloseClipboard();
-
-	// Simulate Ctrl+V to paste
-	Sleep(10); // Small delay to ensure clipboard is ready
+	Sleep(10);
 	INPUT inputs[4] = {};
-
-	// Ctrl down
 	inputs[0].type = INPUT_KEYBOARD;
 	inputs[0].ki.wVk = VK_CONTROL;
-
-	// V down
 	inputs[1].type = INPUT_KEYBOARD;
 	inputs[1].ki.wVk = 'V';
-
-	// V up
 	inputs[2].type = INPUT_KEYBOARD;
 	inputs[2].ki.wVk = 'V';
 	inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
-
-	// Ctrl up
 	inputs[3].type = INPUT_KEYBOARD;
 	inputs[3].ki.wVk = VK_CONTROL;
 	inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
-
 	SendInput(4, inputs, sizeof(INPUT));
-
-	// Optional: Restore old clipboard after a delay
-	// (You can do this in a background thread or skip it)
-	Sleep(50); // Wait for paste to complete
+	Sleep(50);
 	if (!oldClipboard.empty()) {
 		if (OpenClipboard(g_hMainWnd)) {
 			EmptyClipboard();
@@ -278,73 +217,44 @@ static bool PasteViaClipboard(const std::wstring& text) {
 			CloseClipboard();
 		}
 	}
-
 	return true;
 }
-
-// Triggered on Ctrl+Shift+A: copy from anchor position to end of g_captionHistory
 static void DoFindAndCopyWork() {
 	if (InterlockedCompareExchange(&g_pasteInProgress, 1, 0) != 0) return;
-
 	if (!g_captionHistory.empty()) {
-		// Ensure anchor is within bounds
 		if (g_anchorHistoryIndex >= 0 && g_anchorHistoryIndex < (int)g_captionHistory.length()) {
 			std::wstring textToCopy = g_captionHistory.substr(g_anchorHistoryIndex);
 			PasteViaClipboard(textToCopy);
 		}
 	}
-
 	InterlockedExchange(&g_pasteInProgress, 0);
 }
 
-// Detect new words by finding a pattern from the end of previous text in current text
-// Read backwards from previous text to find FIRST pattern that exists in current text
 static void UpdateCaptionHistory(const std::wstring& currentText) {
-	// First time - save everything
 	if (g_previousCaption.empty()) {
 		g_captionHistory = currentText;
 		g_previousCaption = currentText;
 		return;
 	}
-
 	size_t prevLen = g_previousCaption.length();
 	size_t currLen = currentText.length();
-
-	// If text got SHORTER, old text scrolled away - don't add anything
 	if (currLen < prevLen) {
 		g_previousCaption = currentText;
 		return;
 	}
-
-	// If text didn't grow much, probably just punctuation edits - ignore
 	if (currLen <= prevLen + 1) {
 		g_previousCaption = currentText;
 		return;
 	}
-
-	// Read backwards from end of previous text to find FIRST 20-char pattern that exists in current
-	// Algorithm: Take last 20 chars, if not found, shift back 1 char and take next 20 chars, repeat
 	const size_t patternLen = 20;
-
 	bool foundPattern = false;
 	std::wstring newPart;
-
-	// Make sure we have enough text to extract a pattern
 	if (prevLen < patternLen) {
-		// Previous text too short, just append current as new sentence
 		g_captionHistory = currentText;
 		g_previousCaption = currentText;
 		return;
 	}
-
-	// Start from the end and shift back one position at a time
-	// endPos is the position AFTER the last char of the pattern (exclusive end)
-	// First iteration: endPos = prevLen, pattern = [prevLen-20, prevLen-1]
-	// Second iteration: endPos = prevLen-1, pattern = [prevLen-21, prevLen-2]
-	// etc.
-	size_t maxShift = (std::min)(prevLen - patternLen, (size_t)200); // Don't search more than 200 chars back
-
-	// Convert current text to lowercase for case-insensitive comparison
+	size_t maxShift = (std::min)(prevLen - patternLen, (size_t)200);
 	std::wstring currentLower = currentText;
 	std::transform(currentLower.begin(), currentLower.end(), currentLower.begin(), ::towlower);
 	std::wstring pattern;
@@ -352,31 +262,19 @@ static void UpdateCaptionHistory(const std::wstring& currentText) {
 	for (size_t shift = 0; shift <= maxShift; shift++) {
 		size_t endPos = prevLen - shift;
 		size_t startPos = endPos - patternLen;
-
-		// Extract 20 chars from [startPos, endPos)
 		pattern = g_previousCaption.substr(startPos, patternLen);
-
-		// Convert pattern to lowercase for case-insensitive search
 		std::wstring patternLower = pattern;
 		std::transform(patternLower.begin(), patternLower.end(), patternLower.begin(), ::towlower);
-
-		// Search for this pattern in current text (case-insensitive)
 		size_t pos = currentLower.find(patternLower);
-
 		if (pos != std::wstring::npos) {
-			// Found the pattern! Append everything after it in current text
 			newPart = currentText.substr(pos);
 			foundPattern = true;
-			break; // Stop at first match
+			break;
 		}
 	}
-
 	if (foundPattern) {
-		// Append the new part after the pattern
 		size_t hpos = g_captionHistory.find(pattern);
-
 		if (hpos != std::wstring::npos) {
-			// Keep everything before the pattern, remove pattern and everything after
 			std::wstring historyBeforePattern = g_captionHistory.substr(0, hpos);
 			g_captionHistory = historyBeforePattern + newPart;
 		}
@@ -385,21 +283,16 @@ static void UpdateCaptionHistory(const std::wstring& currentText) {
 		}
 	}
 	else {
-		// Pattern not found - treat as new sentence
 		g_captionHistory += L" " + currentText;
 	}
-
 	g_previousCaption = currentText;
 }
 
-// Low-level keyboard hook: trigger paste on key *down* only (same as normal Ctrl+V), and consume the key.
 static LRESULT CALLBACK LowLevelKbHook(int nCode, WPARAM wParam, LPARAM lParam) {
 	if (nCode == HC_ACTION && wParam == WM_KEYDOWN && g_hMainWnd) {
 		auto* p = reinterpret_cast<KBDLLHOOKSTRUCT*>(lParam);
 		bool ctrlDown = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
 		bool shiftDown = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
-
-		// Ctrl+Shift+A: find anchor and copy
 		if (p->vkCode == 'A' && ctrlDown && shiftDown) {
 			PostMessageW(g_hMainWnd, WM_APP_FIND_AND_COPY, 0, 0);
 			return 1;
@@ -411,41 +304,26 @@ static LRESULT CALLBACK LowLevelKbHook(int nCode, WPARAM wParam, LPARAM lParam) 
 static WNDPROC g_origEditProc = nullptr;
 
 LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-	// Detect user scrolling (mouse wheel, scrollbar, arrow keys)
 	if (uMsg == WM_MOUSEWHEEL || uMsg == WM_VSCROLL ||
 		(uMsg == WM_KEYDOWN && (wParam == VK_UP || wParam == VK_DOWN || wParam == VK_PRIOR || wParam == VK_NEXT))) {
-
-		// Let the default handler process the scroll first
 		LRESULT r = CallWindowProcW(g_origEditProc, hWnd, uMsg, wParam, lParam);
-
-		// Check if user is at bottom after scrolling
 		bool atBottom = IsScrolledToBottom(hWnd);
-
 		if (atBottom && g_userScrolledUp) {
-			// User scrolled back to bottom - resume auto-scroll
 			g_userScrolledUp = false;
 		}
 		else if (!atBottom && !g_userScrolledUp) {
-			// User scrolled up - pause auto-scroll
 			g_userScrolledUp = true;
 		}
-
 		return r;
 	}
-
 	if (uMsg == WM_LBUTTONUP) {
 		LRESULT r = CallWindowProcW(g_origEditProc, hWnd, uMsg, wParam, lParam);
 		CHARRANGE cr = {};
 		SendMessageW(hWnd, EM_EXGETSEL, 0, (LPARAM)&cr);
 		g_anchorCharIndex = (std::min)((int)cr.cpMin, (int)cr.cpMax);
-		g_anchorSetByUser = true;  // User manually selected the anchor
-
-		// Update history index to match visual position
+		g_anchorSetByUser = true;
 		g_anchorHistoryIndex = g_anchorCharIndex;
-
-		// Apply yellow highlighting
 		ApplyYellowHighlight(hWnd);
-
 		return r;
 	}
 	if (uMsg == WM_KEYDOWN && wParam == 'A' && (GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_SHIFT) & 0x8000)) {
@@ -459,77 +337,45 @@ std::wstring GetLiveCaptionText() {
 	HWND hwndCaption = nullptr;
 	EnumWindows(FindLiveCaptionWindow, reinterpret_cast<LPARAM>(&hwndCaption));
 	if (!hwndCaption) return L"";
-
 	IUIAutomation* pAutomation = nullptr;
 	HRESULT hr = CoCreateInstance(__uuidof(CUIAutomation), nullptr, CLSCTX_INPROC_SERVER, __uuidof(IUIAutomation), reinterpret_cast<void**>(&pAutomation));
 	if (FAILED(hr) || !pAutomation) return L"";
-
 	IUIAutomationElement* pRoot = nullptr;
 	hr = pAutomation->ElementFromHandle(hwndCaption, &pRoot);
 	if (FAILED(hr) || !pRoot) { pAutomation->Release(); return L""; }
-
 	std::wstring text;
-	CollectTextFromElement(pAutomation, pRoot, text, true); // true = skip root name ("Live captions")
+	CollectTextFromElement(pAutomation, pRoot, text, true);
 	pRoot->Release();
 	pAutomation->Release();
-
 	while (!text.empty() && (text.back() == L'\r' || text.back() == L'\n')) text.pop_back();
 	return text;
 }
 
-// --- App entry and window ---
-int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
-	_In_opt_ HINSTANCE hPrevInstance,
-	_In_ LPWSTR    lpCmdLine,
-	_In_ int       nCmdShow)
-{
+int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow) {
 	UNREFERENCED_PARAMETER(hPrevInstance);
 	UNREFERENCED_PARAMETER(lpCmdLine);
-
 	CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-
-	// Initialize global strings
 	LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
 	LoadStringW(hInstance, IDC_LIVECAPTION, szWindowClass, MAX_LOADSTRING);
 	MyRegisterClass(hInstance);
-
-	// Perform application initialization:
-	if (!InitInstance(hInstance, nCmdShow))
-	{
+	if (!InitInstance(hInstance, nCmdShow)) {
 		return FALSE;
 	}
-
 	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_LIVECAPTION));
-
 	MSG msg;
-
-	// Main message loop:
-	while (GetMessage(&msg, nullptr, 0, 0))
-	{
-		if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
-		{
+	while (GetMessage(&msg, nullptr, 0, 0)) {
+		if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg)) {
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
 	}
-
 	CoUninitialize();
 	return (int)msg.wParam;
 }
 
-
-
-//
-//  FUNCTION: MyRegisterClass()
-//
-//  PURPOSE: Registers the window class.
-//
-ATOM MyRegisterClass(HINSTANCE hInstance)
-{
+ATOM MyRegisterClass(HINSTANCE hInstance) {
 	WNDCLASSEXW wcex;
-
 	wcex.cbSize = sizeof(WNDCLASSEX);
-
 	wcex.style = CS_HREDRAW | CS_VREDRAW;
 	wcex.lpfnWndProc = WndProc;
 	wcex.cbClsExtra = 0;
@@ -538,63 +384,34 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 	wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_LIVECAPTION));
 	wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
 	wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-	wcex.lpszMenuName = nullptr;  // No menu
+	wcex.lpszMenuName = nullptr;
 	wcex.lpszClassName = szWindowClass;
 	wcex.hIconSm = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
-
 	return RegisterClassExW(&wcex);
 }
 
-//
-//   FUNCTION: InitInstance(HINSTANCE, int)
-//
-//   PURPOSE: Saves instance handle and creates main window
-//
-//   COMMENTS:
-//
-//        In this function, we save the instance handle in a global variable and
-//        create and display the main program window.
-//
-BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
-{
-	hInst = hInstance; // Store instance handle in our global variable
-
-	HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-		CW_USEDEFAULT, 0, 640, 320, nullptr, nullptr, hInstance, nullptr);
-
-	if (!hWnd)
-	{
+BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
+	hInst = hInstance;
+	HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, 0, 640, 320, nullptr, nullptr, hInstance, nullptr);
+	if (!hWnd) {
 		return FALSE;
 	}
-
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
-
 	return TRUE;
 }
 
-//
-//  FUNCTION: WndProc(HWND, UINT, WPARAM, LPARAM)
-//
-//  PURPOSE: Processes messages for the main window.
-//
-//  WM_COMMAND  - process the application menu
-//  WM_PAINT    - Paint the main window
-//  WM_DESTROY  - post a quit message and return
-//
-//
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	switch (message)
 	{
 	case WM_CREATE:
 	{
-		// Black text on white background, Segoe UI
 		HDC hdc = GetDC(hWnd);
 		int logPixels = hdc ? GetDeviceCaps(hdc, LOGPIXELSY) : 96;
 		if (hdc) ReleaseDC(hWnd, hdc);
 		g_hCaptionFont = CreateFontW(
-			-MulDiv(12, logPixels, 72), // 12pt
+			-MulDiv(12, logPixels, 72),
 			0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
 			DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
 			DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
@@ -633,39 +450,26 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		if (wParam == IDT_POLL_CAPTION) {
 			std::wstring text = GetLiveCaptionText();
 			if (text != g_lastCaptionText) {
-				// Update caption history by detecting new words
 				if (!text.empty()) {
 					UpdateCaptionHistory(text);
 				}
-
 				g_lastCaptionText = std::move(text);
-
 				HWND hEdit = GetDlgItem(hWnd, IDC_CAPTION_EDIT);
 				if (hEdit) {
-					// Save scroll position if user has scrolled up
 					POINT ptScroll = {};
 					if (g_userScrolledUp) {
 						SendMessageW(hEdit, EM_GETSCROLLPOS, 0, (LPARAM)&ptScroll);
 					}
-
-					// Display FULL HISTORY instead of just current caption
 					SetWindowTextW(hEdit, g_captionHistory.c_str());
-
-					// Mark anchor as auto-set when text updates (unless user has manually set it)
 					if (!g_anchorSetByUser) {
-						g_anchorCharIndex = 0;  // Auto anchor at start of visible text
-						g_anchorHistoryIndex = 0;  // Auto anchor at start of history
+						g_anchorCharIndex = 0;
+						g_anchorHistoryIndex = 0;
 					}
-
-					// Apply yellow highlighting
 					ApplyYellowHighlight(hEdit);
-
-					// Restore scroll position if user has scrolled up
 					if (g_userScrolledUp) {
 						SendMessageW(hEdit, EM_SETSCROLLPOS, 0, (LPARAM)&ptScroll);
 					}
 					else {
-						// Only auto-scroll if user is at bottom
 						ScrollEditToBottom(hEdit);
 					}
 				}
