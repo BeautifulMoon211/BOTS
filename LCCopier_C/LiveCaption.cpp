@@ -221,6 +221,23 @@ static void DoFindAndCopyWork() {
 	InterlockedExchange(&g_pasteInProgress, 0);
 }
 
+static void DoClearHistory() {
+	std::wstring currentLiveCaption = GetLiveCaptionText();
+	g_captionHistory.clear();
+	g_previousCaption = currentLiveCaption;
+	g_lastCaptionText = currentLiveCaption;
+	g_anchorCharIndex = 0;
+	g_anchorHistoryIndex = 0;
+	g_anchorSetByUser = false;
+	HWND hEdit = GetDlgItem(g_hMainWnd, IDC_CAPTION_EDIT);
+	if (hEdit) {
+		SendMessageW(hEdit, WM_SETREDRAW, FALSE, 0);
+		SetWindowTextW(hEdit, L"");
+		SendMessageW(hEdit, WM_SETREDRAW, TRUE, 0);
+		InvalidateRect(hEdit, nullptr, TRUE);
+	}
+}
+
 static void UpdateCaptionHistory(const std::wstring& currentText) {
 	if (g_previousCaption.empty()) {
 		g_captionHistory = currentText;
@@ -288,6 +305,10 @@ static LRESULT CALLBACK LowLevelKbHook(int nCode, WPARAM wParam, LPARAM lParam) 
 			PostMessageW(g_hMainWnd, WM_APP_FIND_AND_COPY, 0, 0);
 			return 1;
 		}
+		if (p->vkCode == 'D' && ctrlDown && shiftDown) {
+			PostMessageW(g_hMainWnd, WM_APP_CLEAR_HISTORY, 0, 0);
+			return 1;
+		}
 	}
 	return CallNextHookEx(g_hKbHook, nCode, wParam, lParam);
 }
@@ -319,6 +340,10 @@ LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 	}
 	if (uMsg == WM_KEYDOWN && wParam == 'A' && (GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_SHIFT) & 0x8000)) {
 		PostMessageW(GetParent(hWnd), WM_APP_FIND_AND_COPY, 0, 0);
+		return 0;
+	}
+	if (uMsg == WM_KEYDOWN && wParam == 'D' && (GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_SHIFT) & 0x8000)) {
+		PostMessageW(GetParent(hWnd), WM_APP_CLEAR_HISTORY, 0, 0);
 		return 0;
 	}
 	return CallWindowProcW(g_origEditProc, hWnd, uMsg, wParam, lParam);
@@ -402,7 +427,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		int logPixels = hdc ? GetDeviceCaps(hdc, LOGPIXELSY) : 96;
 		if (hdc) ReleaseDC(hWnd, hdc);
 		g_hCaptionFont = CreateFontW(
-			-MulDiv(12, logPixels, 72),
+			-MulDiv(12, logPixels, 72), 
 			0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
 			DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
 			DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
@@ -426,6 +451,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	break;
 	case WM_APP_FIND_AND_COPY:
 		DoFindAndCopyWork();
+		return 0;
+	case WM_APP_CLEAR_HISTORY:
+		DoClearHistory();
 		return 0;
 	case WM_SIZE:
 	{
