@@ -221,6 +221,19 @@ static void DoFindAndCopyWork() {
 	InterlockedExchange(&g_pasteInProgress, 0);
 }
 
+static int FindWordStart(const std::wstring& text, int pos) {
+	if (text.empty() || pos <= 0) return 0;
+	if (pos >= (int)text.length()) pos = (int)text.length() - 1;
+	while (pos > 0) {
+		wchar_t ch = text[pos - 1];
+		if (ch == L' ' || ch == L'\t' || ch == L'\r' || ch == L'\n' || ch == L'.' || ch == L',' || ch == L'!' || ch == L'?') {
+			break;
+		}
+		pos--;
+	}
+	return pos;
+}
+
 static void DoClearHistory() {
 	std::wstring currentLiveCaption = GetLiveCaptionText();
 	g_captionHistory.clear();
@@ -332,9 +345,11 @@ LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		LRESULT r = CallWindowProcW(g_origEditProc, hWnd, uMsg, wParam, lParam);
 		CHARRANGE cr = {};
 		SendMessageW(hWnd, EM_EXGETSEL, 0, (LPARAM)&cr);
-		g_anchorCharIndex = (std::min)((int)cr.cpMin, (int)cr.cpMax);
+		int clickPos = (std::min)((int)cr.cpMin, (int)cr.cpMax);
+		int wordStart = FindWordStart(g_captionHistory, clickPos);
+		g_anchorCharIndex = wordStart;
 		g_anchorSetByUser = true;
-		g_anchorHistoryIndex = g_anchorCharIndex;
+		g_anchorHistoryIndex = wordStart;
 		ApplyYellowHighlight(hWnd);
 		return r;
 	}
