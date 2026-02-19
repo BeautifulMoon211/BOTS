@@ -215,11 +215,15 @@ static bool PasteViaClipboard(const std::wstring& text) {
 }
 static void DoFindAndCopyWork() {
 	if (InterlockedCompareExchange(&g_pasteInProgress, 1, 0) != 0) return;
-	if (!g_captionHistory.empty()) {
-		if (g_anchorHistoryIndex >= 0 && g_anchorHistoryIndex < (int)g_captionHistory.length()) {
-			std::wstring textToCopy = g_captionHistory.substr(g_anchorHistoryIndex);
-			PasteViaClipboard(textToCopy);
+	try {
+		if (!g_captionHistory.empty()) {
+			if (g_anchorHistoryIndex >= 0 && g_anchorHistoryIndex < (int)g_captionHistory.length()) {
+				std::wstring textToCopy = g_captionHistory.substr(g_anchorHistoryIndex);
+				PasteViaClipboard(textToCopy);
+			}
 		}
+	}
+	catch (...) {
 	}
 	InterlockedExchange(&g_pasteInProgress, 0);
 }
@@ -297,7 +301,7 @@ static void UpdateCaptionHistory(const std::wstring& currentText) {
 		}
 	}
 	if (foundPattern) {
-		size_t hpos = g_captionHistory.find(pattern);
+		size_t hpos = g_captionHistory.rfind(pattern);
 		if (hpos != std::wstring::npos) {
 			std::wstring historyBeforePattern = g_captionHistory.substr(0, hpos);
 			g_captionHistory = historyBeforePattern + newPart;
