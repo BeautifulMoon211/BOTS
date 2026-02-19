@@ -344,7 +344,7 @@ LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		}
 		return r;
 	}
-	if (uMsg == WM_LBUTTONUP) {
+	if (uMsg == WM_LBUTTONDOWN) {
 		LRESULT r = CallWindowProcW(g_origEditProc, hWnd, uMsg, wParam, lParam);
 		CHARRANGE cr = {};
 		SendMessageW(hWnd, EM_EXGETSEL, 0, (LPARAM)&cr);
