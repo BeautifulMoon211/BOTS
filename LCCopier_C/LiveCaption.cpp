@@ -129,6 +129,7 @@ static void ApplyYellowHighlight(HWND hEdit) {
 	g_anchorCharIndex = (std::min)(g_anchorCharIndex, len);
 	POINT ptScroll = {};
 	SendMessageW(hEdit, EM_GETSCROLLPOS, 0, (LPARAM)&ptScroll);
+	SendMessageW(hEdit, WM_SETREDRAW, FALSE, 0);
 	CHARRANGE cr = {};
 	CHARFORMAT2W cf = {};
 	cf.cbSize = sizeof(cf);
@@ -150,6 +151,8 @@ static void ApplyYellowHighlight(HWND hEdit) {
 	cr.cpMax = g_anchorCharIndex;
 	SendMessageW(hEdit, EM_EXSETSEL, 0, (LPARAM)&cr);
 	SendMessageW(hEdit, EM_SETSCROLLPOS, 0, (LPARAM)&ptScroll);
+	SendMessageW(hEdit, WM_SETREDRAW, TRUE, 0);
+	InvalidateRect(hEdit, nullptr, TRUE);
 }
 
 static bool PasteViaClipboard(const std::wstring& text) {
