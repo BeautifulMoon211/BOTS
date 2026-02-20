@@ -241,6 +241,26 @@ static int FindWordStart(const std::wstring& text, int pos) {
 	return pos;
 }
 
+static void AutoStartLiveCaption() {
+	INPUT inputs[6] = {};
+	inputs[0].type = INPUT_KEYBOARD;
+	inputs[0].ki.wVk = VK_LWIN;
+	inputs[1].type = INPUT_KEYBOARD;
+	inputs[1].ki.wVk = VK_CONTROL;
+	inputs[2].type = INPUT_KEYBOARD;
+	inputs[2].ki.wVk = 'L';
+	inputs[3].type = INPUT_KEYBOARD;
+	inputs[3].ki.wVk = 'L';
+	inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
+	inputs[4].type = INPUT_KEYBOARD;
+	inputs[4].ki.wVk = VK_CONTROL;
+	inputs[4].ki.dwFlags = KEYEVENTF_KEYUP;
+	inputs[5].type = INPUT_KEYBOARD;
+	inputs[5].ki.wVk = VK_LWIN;
+	inputs[5].ki.dwFlags = KEYEVENTF_KEYUP;
+	SendInput(6, inputs, sizeof(INPUT));
+}
+
 static void DoClearHistory() {
 	std::wstring currentLiveCaption = GetLiveCaptionText();
 	g_captionHistory.clear();
@@ -399,6 +419,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	if (!InitInstance(hInstance, nCmdShow)) {
 		return FALSE;
 	}
+	AutoStartLiveCaption();
 	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_LIVECAPTION));
 	MSG msg;
 	while (GetMessage(&msg, nullptr, 0, 0)) {
