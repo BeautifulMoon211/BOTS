@@ -68,6 +68,11 @@ document.getElementById('openSettings').addEventListener('click', () => {
   chrome.runtime.openOptionsPage();
 });
 
+// Check shortcuts button
+document.getElementById('checkShortcuts').addEventListener('click', () => {
+  chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+});
+
 // Show status message
 function showStatus(message, type) {
   const statusDiv = document.getElementById('status');

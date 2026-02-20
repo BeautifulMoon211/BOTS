@@ -88,8 +88,17 @@
   <button id="copyNow">Copy Current URL Now</button>
   <button id="exportUncopied">📋 Export to Sheets</button>
   <button id="openSettings" class="secondary">⚙️ Settings</button>
+  <button id="checkShortcuts" class="secondary">🔍 Check Shortcuts</button>
 
   <div id="status" class="status"></div>
+
+  <div class="info" style="margin-top: 15px; background: #fff3cd; border-left-color: #ffc107;">
+    <p style="font-weight: bold; margin-bottom: 8px;">⚠️ Ctrl+Q not working?</p>
+    <p style="font-size: 12px;">1. Go to <strong>chrome://extensions/shortcuts</strong></p>
+    <p style="font-size: 12px;">2. Find LinkCopier and assign Ctrl+Q</p>
+    <p style="font-size: 12px;">3. Reload this extension</p>
+    <p style="font-size: 12px;">4. Test on a regular webpage (not chrome:// pages)</p>
+  </div>
   
   <script src="popup.js"></script>
 </body>
