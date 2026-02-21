@@ -13,6 +13,7 @@
 #define IDI_SMALL				108
 #define IDC_LIVECAPTION			109
 #define IDC_CAPTION_EDIT		1000
+#define IDC_SETTINGS_BUTTON		1001
 #define IDC_MYICON				2
 #define IDT_POLL_CAPTION        1
 
@@ -20,6 +21,7 @@
 #define POLL_INTERVAL_MS            400
 #define WM_APP_FIND_AND_COPY (WM_APP + 3)
 #define WM_APP_CLEAR_HISTORY (WM_APP + 4)
+#define IDM_SETTINGS 9001
 
 #ifndef IDC_STATIC
 #define IDC_STATIC				-1

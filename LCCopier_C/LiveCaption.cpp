@@ -451,7 +451,8 @@ ATOM MyRegisterClass(HINSTANCE hInstance) {
 
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 	hInst = hInstance;
-	HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, 0, 640, 320, nullptr, nullptr, hInstance, nullptr);
+	DWORD dwStyle = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX;
+	HWND hWnd = CreateWindowW(szWindowClass, szTitle, dwStyle, CW_USEDEFAULT, 0, 640, 320, nullptr, nullptr, hInstance, nullptr);
 	if (!hWnd) {
 		return FALSE;
 	}
@@ -470,7 +471,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		int logPixels = hdc ? GetDeviceCaps(hdc, LOGPIXELSY) : 96;
 		if (hdc) ReleaseDC(hWnd, hdc);
 		g_hCaptionFont = CreateFontW(
-			-MulDiv(12, logPixels, 72), 
+			-MulDiv(12, logPixels, 72),
 			0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
 			DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
 			DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
@@ -490,6 +491,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		g_hMainWnd = hWnd;
 		g_hKbHook = SetWindowsHookExW(WH_KEYBOARD_LL, LowLevelKbHook, nullptr, 0);
+		HMENU hSysMenu = GetSystemMenu(hWnd, FALSE);
+		if (hSysMenu) {
+			DeleteMenu(hSysMenu, SC_MAXIMIZE, MF_BYCOMMAND);
+			InsertMenuW(hSysMenu, SC_CLOSE, MF_BYCOMMAND | MF_STRING, IDM_SETTINGS, L"Settings");
+		}
 	}
 	break;
 	case WM_APP_FIND_AND_COPY:
@@ -543,7 +549,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 		}
 		break;
+	case WM_SYSCOMMAND:
+		if (wParam == IDM_SETTINGS) {
+			MessageBoxW(hWnd, L"Settings panel will open here", L"Settings", MB_OK);
+			return 0;
+		}
+		return DefWindowProc(hWnd, message, wParam, lParam);
 	case WM_COMMAND:
+		if (LOWORD(wParam) == IDC_SETTINGS_BUTTON) {
+			MessageBoxW(hWnd, L"Settings panel will open here", L"Settings", MB_OK);
+			return 0;
+		}
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	case WM_PAINT:
 	{
