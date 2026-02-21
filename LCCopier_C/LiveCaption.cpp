@@ -1,4 +1,5 @@
 #include "LiveCaption.h"
+#include "SettingsDialog.h"
 
 HINSTANCE hInst;
 WCHAR szTitle[MAX_LOADSTRING];
@@ -551,7 +552,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 	case WM_SYSCOMMAND:
 		if (wParam == IDM_SETTINGS) {
-			MessageBoxW(hWnd, L"Settings panel will open here", L"Settings", MB_OK);
+			SettingsDialog::Show(hWnd);
 			return 0;
 		}
 		return DefWindowProc(hWnd, message, wParam, lParam);
