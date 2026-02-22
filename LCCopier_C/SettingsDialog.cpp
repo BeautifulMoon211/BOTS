@@ -18,16 +18,14 @@ void SettingsDialog::Show(HWND hParent) {
     LoadLibraryW(L"Msftedit.dll");
     s_hParent = hParent;
     s_settings = LoadSettings();
-    s_hDlg = CreateDialogParamW(GetModuleHandle(nullptr), MAKEINTRESOURCEW(IDD_SETTINGS_DIALOG),
-                                 hParent, DialogProc, 0);
-    if (s_hDlg) {
-        ShowWindow(s_hDlg, SW_SHOW);
-    }
+    DialogBoxParamW(GetModuleHandle(nullptr), MAKEINTRESOURCEW(IDD_SETTINGS_DIALOG),
+                    hParent, DialogProc, 0);
+    s_hDlg = nullptr;
 }
 
 void SettingsDialog::Close() {
     if (s_hDlg && IsWindow(s_hDlg)) {
-        DestroyWindow(s_hDlg);
+        EndDialog(s_hDlg, 0);
         s_hDlg = nullptr;
     }
 }
@@ -153,6 +151,7 @@ void SettingsDialog::SaveToRegistry(const AppSettings& settings) {
 INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message) {
     case WM_INITDIALOG:
+        s_hDlg = hDlg;
         InitializeControls(hDlg);
         LoadSettingsToControls(hDlg);
         return TRUE;
