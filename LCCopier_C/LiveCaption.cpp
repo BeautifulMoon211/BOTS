@@ -16,6 +16,8 @@ static volatile long g_pasteInProgress = 0;
 static HWND g_hMainWnd = nullptr;
 static HHOOK g_hKbHook = nullptr;
 static bool g_userScrolledUp = false;
+static HotkeyConfig g_autoCopyHotkey   = { true, true, false, false, 'A' };
+static HotkeyConfig g_autoDeleteHotkey = { true, true, false, false, 'D' };
 ATOM MyRegisterClass(HINSTANCE hInstance);
 BOOL InitInstance(HINSTANCE, int);
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
@@ -341,13 +343,20 @@ static void UpdateCaptionHistory(const std::wstring& currentText) {
 static LRESULT CALLBACK LowLevelKbHook(int nCode, WPARAM wParam, LPARAM lParam) {
 	if (nCode == HC_ACTION && wParam == WM_KEYDOWN && g_hMainWnd) {
 		auto* p = reinterpret_cast<KBDLLHOOKSTRUCT*>(lParam);
-		bool ctrlDown = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
-		bool shiftDown = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
-		if (p->vkCode == 'A' && ctrlDown && shiftDown) {
+		bool ctrlDown  = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+		bool shiftDown = (GetAsyncKeyState(VK_SHIFT)   & 0x8000) != 0;
+		bool altDown   = (GetAsyncKeyState(VK_MENU)    & 0x8000) != 0;
+		bool winDown   = ((GetAsyncKeyState(VK_LWIN) | GetAsyncKeyState(VK_RWIN)) & 0x8000) != 0;
+		auto matches = [&](const HotkeyConfig& hk) {
+			return hk.vkCode == p->vkCode
+				&& hk.ctrl  == ctrlDown  && hk.shift == shiftDown
+				&& hk.alt   == altDown   && hk.win   == winDown;
+		};
+		if (matches(g_autoCopyHotkey)) {
 			PostMessageW(g_hMainWnd, WM_APP_FIND_AND_COPY, 0, 0);
 			return 1;
 		}
-		if (p->vkCode == 'D' && ctrlDown && shiftDown) {
+		if (matches(g_autoDeleteHotkey)) {
 			PostMessageW(g_hMainWnd, WM_APP_CLEAR_HISTORY, 0, 0);
 			return 1;
 		}
@@ -382,13 +391,24 @@ LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		ApplyYellowHighlight(hWnd);
 		return r;
 	}
-	if (uMsg == WM_KEYDOWN && wParam == 'A' && (GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_SHIFT) & 0x8000)) {
-		PostMessageW(GetParent(hWnd), WM_APP_FIND_AND_COPY, 0, 0);
-		return 0;
-	}
-	if (uMsg == WM_KEYDOWN && wParam == 'D' && (GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_SHIFT) & 0x8000)) {
-		PostMessageW(GetParent(hWnd), WM_APP_CLEAR_HISTORY, 0, 0);
-		return 0;
+	if (uMsg == WM_KEYDOWN) {
+		bool ctrl  = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+		bool shift = (GetKeyState(VK_SHIFT)   & 0x8000) != 0;
+		bool alt   = (GetKeyState(VK_MENU)    & 0x8000) != 0;
+		bool win   = ((GetKeyState(VK_LWIN) | GetKeyState(VK_RWIN)) & 0x8000) != 0;
+		auto matches = [&](const HotkeyConfig& hk) {
+			return hk.vkCode == (UINT)wParam
+				&& hk.ctrl  == ctrl  && hk.shift == shift
+				&& hk.alt   == alt   && hk.win   == win;
+		};
+		if (matches(g_autoCopyHotkey)) {
+			PostMessageW(GetParent(hWnd), WM_APP_FIND_AND_COPY, 0, 0);
+			return 0;
+		}
+		if (matches(g_autoDeleteHotkey)) {
+			PostMessageW(GetParent(hWnd), WM_APP_CLEAR_HISTORY, 0, 0);
+			return 0;
+		}
 	}
 	return CallWindowProcW(g_origEditProc, hWnd, uMsg, wParam, lParam);
 }
@@ -511,6 +531,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			BYTE alpha = (BYTE)((settings.transparency * 255) / 100);
 			SetLayeredWindowAttributes(hWnd, 0, alpha, LWA_ALPHA);
 		}
+		g_autoCopyHotkey   = settings.autoCopyHotkey;
+		g_autoDeleteHotkey = settings.autoDeleteHotkey;
 	}
 	break;
 	case WM_APP_FIND_AND_COPY:
@@ -562,6 +584,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			BYTE alpha = (BYTE)((settings.transparency * 255) / 100);
 			SetLayeredWindowAttributes(hWnd, 0, alpha, LWA_ALPHA);
 		}
+		g_autoCopyHotkey   = settings.autoCopyHotkey;
+		g_autoDeleteHotkey = settings.autoDeleteHotkey;
 		return 0;
 	}
 	case WM_SIZE:
