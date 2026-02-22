@@ -128,6 +128,7 @@ static void ApplyYellowHighlight(HWND hEdit) {
 	int len = GetWindowTextLengthW(hEdit);
 	if (len <= 0) return;
 	g_anchorCharIndex = (std::min)(g_anchorCharIndex, len);
+	AppSettings settings = SettingsDialog::LoadSettings();
 	POINT ptScroll = {};
 	SendMessageW(hEdit, EM_GETSCROLLPOS, 0, (LPARAM)&ptScroll);
 	SendMessageW(hEdit, WM_SETREDRAW, FALSE, 0);
@@ -138,15 +139,15 @@ static void ApplyYellowHighlight(HWND hEdit) {
 	cr.cpMax = g_anchorCharIndex;
 	SendMessageW(hEdit, EM_EXSETSEL, 0, (LPARAM)&cr);
 	cf.dwMask = CFM_BACKCOLOR | CFM_COLOR;
-	cf.crTextColor = RGB(0, 0, 0);
-	cf.crBackColor = RGB(255, 255, 255);
+	cf.crTextColor = settings.textColor;
+	cf.crBackColor = settings.bgColor;
 	SendMessageW(hEdit, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf);
 	cr.cpMin = g_anchorCharIndex;
 	cr.cpMax = len;
 	SendMessageW(hEdit, EM_EXSETSEL, 0, (LPARAM)&cr);
 	cf.dwMask = CFM_BACKCOLOR | CFM_COLOR;
-	cf.crTextColor = RGB(0, 0, 0);
-	cf.crBackColor = RGB(255, 220, 100);
+	cf.crTextColor = settings.textColor;
+	cf.crBackColor = settings.selectedBgColor;
 	SendMessageW(hEdit, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf);
 	cr.cpMin = g_anchorCharIndex;
 	cr.cpMax = g_anchorCharIndex;
@@ -468,22 +469,23 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 	case WM_CREATE:
 	{
+		AppSettings settings = SettingsDialog::LoadSettings();
 		HDC hdc = GetDC(hWnd);
 		int logPixels = hdc ? GetDeviceCaps(hdc, LOGPIXELSY) : 96;
 		if (hdc) ReleaseDC(hWnd, hdc);
 		g_hCaptionFont = CreateFontW(
-			-MulDiv(12, logPixels, 72),
+			-MulDiv(settings.textSize, logPixels, 72),
 			0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
 			DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
 			DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
-		g_hEditBrush = CreateSolidBrush(RGB(255, 255, 255));
+		g_hEditBrush = CreateSolidBrush(settings.bgColor);
 
 		LoadLibraryW(L"Msftedit.dll");
 		HWND hEdit = CreateWindowExW(WS_EX_CLIENTEDGE, L"RICHEDIT50W", nullptr,
 			WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL,
 			0, 0, 0, 0, hWnd, (HMENU)(INT_PTR)IDC_CAPTION_EDIT, hInst, nullptr);
 		if (hEdit) {
-			SendMessageW(hEdit, EM_SETBKGNDCOLOR, 0, (LPARAM)RGB(255, 255, 255));
+			SendMessageW(hEdit, EM_SETBKGNDCOLOR, 0, (LPARAM)settings.bgColor);
 			SendMessageW(hEdit, WM_SETFONT, (WPARAM)g_hCaptionFont, TRUE);
 			SendMessageW(hEdit, EM_HIDESELECTION, TRUE, FALSE);
 			SendMessageW(hEdit, WM_SETREDRAW, FALSE, 0);
@@ -505,6 +507,33 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_APP_CLEAR_HISTORY:
 		DoClearHistory();
 		return 0;
+	case WM_APP_SETTINGS_CHANGED:
+	{
+		AppSettings settings = SettingsDialog::LoadSettings();
+		if (g_hEditBrush) {
+			DeleteObject(g_hEditBrush);
+		}
+		g_hEditBrush = CreateSolidBrush(settings.bgColor);
+		if (g_hCaptionFont) {
+			DeleteObject(g_hCaptionFont);
+		}
+		HDC hdc = GetDC(hWnd);
+		int logPixels = hdc ? GetDeviceCaps(hdc, LOGPIXELSY) : 96;
+		if (hdc) ReleaseDC(hWnd, hdc);
+		g_hCaptionFont = CreateFontW(
+			-MulDiv(settings.textSize, logPixels, 72),
+			0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+			DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+			DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
+		HWND hEdit = GetDlgItem(hWnd, IDC_CAPTION_EDIT);
+		if (hEdit) {
+			SendMessageW(hEdit, EM_SETBKGNDCOLOR, 0, (LPARAM)settings.bgColor);
+			SendMessageW(hEdit, WM_SETFONT, (WPARAM)g_hCaptionFont, TRUE);
+			ApplyYellowHighlight(hEdit);
+			InvalidateRect(hEdit, nullptr, TRUE);
+		}
+		return 0;
+	}
 	case WM_SIZE:
 	{
 		HWND hEdit = GetDlgItem(hWnd, IDC_CAPTION_EDIT);
@@ -513,8 +542,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	break;
 	case WM_CTLCOLOREDIT:
 	{
-		SetTextColor((HDC)wParam, RGB(0, 0, 0));
-		SetBkColor((HDC)wParam, RGB(255, 255, 255));
+		AppSettings settings = SettingsDialog::LoadSettings();
+		SetTextColor((HDC)wParam, settings.textColor);
+		SetBkColor((HDC)wParam, settings.bgColor);
 		return (LRESULT)g_hEditBrush;
 	}
 	case WM_TIMER:

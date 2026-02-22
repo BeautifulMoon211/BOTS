@@ -58,7 +58,7 @@ AppSettings SettingsDialog::GetDefaultSettings() {
     settings.textSize = 12;
     settings.textColor = RGB(0, 0, 0);
     settings.bgColor = RGB(255, 255, 255);
-    settings.selectedBgColor = RGB(255, 255, 0);
+    settings.selectedBgColor = RGB(168, 223, 142);
     return settings;
 }
 
@@ -157,7 +157,14 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hDlg, UINT message, WPARAM wPar
         LoadSettingsToControls(hDlg);
         return TRUE;
     case WM_COMMAND:
-        if (LOWORD(wParam) == IDC_CLOSE_SETTINGS || LOWORD(wParam) == IDCANCEL) {
+        if (LOWORD(wParam) == IDC_CLOSE_SETTINGS) {
+            SaveControlsToSettings(hDlg);
+            SaveSettings(s_settings);
+            ApplySettings();
+            Close();
+            return TRUE;
+        }
+        if (LOWORD(wParam) == IDCANCEL) {
             Close();
             return TRUE;
         }
@@ -167,28 +174,31 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hDlg, UINT message, WPARAM wPar
         }
         if (LOWORD(wParam) == IDC_DARKMODE) {
             s_settings.darkMode = !s_settings.darkMode;
+            if (s_settings.darkMode) {
+                s_settings.textColor = RGB(255, 255, 255);
+                s_settings.bgColor = RGB(0, 0, 0);
+                s_settings.selectedBgColor = RGB(0, 95, 2);
+            } else {
+                s_settings.textColor = RGB(0, 0, 0);
+                s_settings.bgColor = RGB(255, 255, 255);
+                s_settings.selectedBgColor = RGB(168, 223, 142);
+            }
             InvalidateRect(GetDlgItem(hDlg, IDC_DARKMODE), nullptr, TRUE);
-            SaveControlsToSettings(hDlg);
-            ApplySettings();
+            InvalidateRect(GetDlgItem(hDlg, IDC_TEXT_COLOR_PICKER), nullptr, TRUE);
+            InvalidateRect(GetDlgItem(hDlg, IDC_BG_COLOR_PICKER), nullptr, TRUE);
+            InvalidateRect(GetDlgItem(hDlg, IDC_SELECTED_BG_COLOR_PICKER), nullptr, TRUE);
+            InvalidateRect(GetDlgItem(hDlg, IDC_SETTOP), nullptr, TRUE);
+            UpdatePreviewText(hDlg);
             return TRUE;
         }
         if (LOWORD(wParam) == IDC_SETTOP) {
             s_settings.setTop = !s_settings.setTop;
             InvalidateRect(GetDlgItem(hDlg, IDC_SETTOP), nullptr, TRUE);
-            SaveControlsToSettings(hDlg);
-            ApplySettings();
             return TRUE;
         }
         if (LOWORD(wParam) == IDC_SETINVISIBLE) {
             s_settings.setInvisible = !s_settings.setInvisible;
             InvalidateRect(GetDlgItem(hDlg, IDC_SETINVISIBLE), nullptr, TRUE);
-            SaveControlsToSettings(hDlg);
-            ApplySettings();
-            return TRUE;
-        }
-        if (LOWORD(wParam) == IDC_AUTOCOPY_APPLY || LOWORD(wParam) == IDC_AUTODELETE_APPLY) {
-            SaveControlsToSettings(hDlg);
-            ApplySettings();
             return TRUE;
         }
         if (LOWORD(wParam) == IDC_TEXT_COLOR_PICKER) {
@@ -203,8 +213,6 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hDlg, UINT message, WPARAM wPar
                 s_settings.textColor = cc.rgbResult;
                 InvalidateRect(GetDlgItem(hDlg, IDC_TEXT_COLOR_PICKER), nullptr, TRUE);
                 UpdatePreviewText(hDlg);
-                SaveControlsToSettings(hDlg);
-                ApplySettings();
             }
             return TRUE;
         }
@@ -220,8 +228,6 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hDlg, UINT message, WPARAM wPar
                 s_settings.bgColor = cc.rgbResult;
                 InvalidateRect(GetDlgItem(hDlg, IDC_BG_COLOR_PICKER), nullptr, TRUE);
                 UpdatePreviewText(hDlg);
-                SaveControlsToSettings(hDlg);
-                ApplySettings();
             }
             return TRUE;
         }
@@ -236,9 +242,8 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hDlg, UINT message, WPARAM wPar
             if (ChooseColorW(&cc)) {
                 s_settings.selectedBgColor = cc.rgbResult;
                 InvalidateRect(GetDlgItem(hDlg, IDC_SELECTED_BG_COLOR_PICKER), nullptr, TRUE);
+                InvalidateRect(GetDlgItem(hDlg, IDC_SETTOP), nullptr, TRUE);
                 UpdatePreviewText(hDlg);
-                SaveControlsToSettings(hDlg);
-                ApplySettings();
             }
             return TRUE;
         }
@@ -273,15 +278,11 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hDlg, UINT message, WPARAM wPar
         if ((HWND)lParam == GetDlgItem(hDlg, IDC_TRANSPARENCY_SLIDER)) {
             int pos = (int)SendDlgItemMessageW(hDlg, IDC_TRANSPARENCY_SLIDER, TBM_GETPOS, 0, 0);
             SetDlgItemInt(hDlg, IDC_TRANSPARENCY_VALUE, pos, FALSE);
-            SaveControlsToSettings(hDlg);
-            ApplySettings();
         }
         if ((HWND)lParam == GetDlgItem(hDlg, IDC_TEXTSIZE_SLIDER)) {
             int pos = (int)SendDlgItemMessageW(hDlg, IDC_TEXTSIZE_SLIDER, TBM_GETPOS, 0, 0);
             SetDlgItemInt(hDlg, IDC_TEXTSIZE_VALUE, pos, FALSE);
             UpdatePreviewText(hDlg);
-            SaveControlsToSettings(hDlg);
-            ApplySettings();
         }
         return TRUE;
     case WM_CLOSE:
@@ -342,7 +343,6 @@ void SettingsDialog::SaveControlsToSettings(HWND hDlg) {
     GetDlgItemTextW(hDlg, IDC_AUTODELETE_KEY, keyText, 32);
     if (keyText[0]) s_settings.autoDeleteHotkey.vkCode = (UINT)towupper(keyText[0]);
     s_settings.textSize = (int)SendDlgItemMessageW(hDlg, IDC_TEXTSIZE_SLIDER, TBM_GETPOS, 0, 0);
-    SaveSettings(s_settings);
 }
 
 void SettingsDialog::ApplySettings() {
@@ -362,7 +362,9 @@ void SettingsDialog::UpdatePreviewText(HWND hDlg) {
     HWND hPreview = GetDlgItem(hDlg, IDC_PREVIEW_TEXT);
     int textSize = (int)SendDlgItemMessageW(hDlg, IDC_TEXTSIZE_SLIDER, TBM_GETPOS, 0, 0);
     SendMessageW(hPreview, EM_SETBKGNDCOLOR, 0, s_settings.bgColor);
-    SetWindowTextW(hPreview, L"This is a sentence previewing the adjusted text size.\nThis is another sentence following the same adjusted text size.");
+    SetWindowTextW(hPreview, L"LiveCaption is a Windows desktop application that captures text from Windows' built-in Live Caption feature and displays it in a customizable window.\n "
+        L"The app monitors the Live Caption accessibility feature using UI Automation COM API and extracts the real-time transcribed text. It provides enhanced functionality beyond the default Live Caption, including persistent caption history, customizable appearance (colors, text size, transparency), and keyboard shortcuts for copying and clearing text.\n"
+        L" The application allows users to keep captions visible even when the original Live Caption window is hidden, making it useful for accessibility, transcription, or recording purposes. All settings are stored in the Windows Registry and can be customized through a dedicated settings panel with features like dark mode, always-on-top mode, and adjustable window transparency.");
     CHARFORMAT2W cf = {};
     cf.cbSize = sizeof(CHARFORMAT2W);
     cf.dwMask = CFM_SIZE | CFM_COLOR | CFM_FACE;
@@ -370,7 +372,7 @@ void SettingsDialog::UpdatePreviewText(HWND hDlg) {
     cf.crTextColor = s_settings.textColor;
     wcscpy_s(cf.szFaceName, L"Segoe UI");
     SendMessageW(hPreview, EM_SETCHARFORMAT, SCF_ALL, (LPARAM)&cf);
-    SendMessageW(hPreview, EM_SETSEL, 0, 4);
+    SendMessageW(hPreview, EM_SETSEL, 29, -1);
     CHARFORMAT2W cfSel = {};
     cfSel.cbSize = sizeof(CHARFORMAT2W);
     cfSel.dwMask = CFM_BACKCOLOR;
@@ -393,7 +395,7 @@ ToggleButtonStyle SettingsDialog::GetToggleButtonStyle(int controlId) {
     else if (controlId == IDC_SETTOP) {
         style.textOff = L"Topmost";
         style.textOn = L"Utmost";
-        style.colorOff = RGB(0, 255, 0);
+        style.colorOff = s_settings.selectedBgColor;
         style.colorOn = RGB(240, 240, 240);
         style.textColorOff = RGB(0, 0, 0);
         style.textColorOn = RGB(0, 0, 0);
@@ -425,7 +427,7 @@ void SettingsDialog::DrawToggleButton(LPDRAWITEMSTRUCT lpDIS, bool state, const 
     }
     SetBkMode(hdc, TRANSPARENT);
     SetTextColor(hdc, textColor);
-    HFONT hFont = CreateFontW(-MulDiv(14, 96, 72), 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+    HFONT hFont = CreateFontW(-MulDiv(9, 96, 72), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
         DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
     HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
