@@ -502,6 +502,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		if (settings.setTop) {
 			SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 		}
+		if (settings.setInvisible) {
+			SetWindowDisplayAffinity(hWnd, WDA_EXCLUDEFROMCAPTURE);
+		}
 	}
 	break;
 	case WM_APP_FIND_AND_COPY:
@@ -539,6 +542,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 		} else {
 			SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+		}
+		if (settings.setInvisible) {
+			SetWindowDisplayAffinity(hWnd, WDA_EXCLUDEFROMCAPTURE);
+		} else {
+			SetWindowDisplayAffinity(hWnd, WDA_NONE);
 		}
 		return 0;
 	}
