@@ -392,15 +392,14 @@ LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		return CallWindowProcW(g_origEditProc, hWnd, uMsg, wParam, lParam);
 	}
 	if (uMsg == WM_LBUTTONDOWN) {
-		if (g_suppressNextAnchorClick) {
-			// This click was only to bring the app back into focus — preserve the existing anchor.
-			g_suppressNextAnchorClick = false;
-			return CallWindowProcW(g_origEditProc, hWnd, uMsg, wParam, lParam);
-		}
+		g_suppressNextAnchorClick = false; // clear the flag regardless
+		// Read click position from the message coordinates BEFORE calling the default
+		// proc, because an activation click may have already moved the caret via
+		// WM_SETFOCUS before WM_LBUTTONDOWN arrives, making EM_EXGETSEL unreliable.
+		POINTL pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+		int clickPos = (int)SendMessageW(hWnd, EM_CHARFROMPOS, 0, (LPARAM)&pt);
+		if (clickPos < 0) clickPos = 0;
 		LRESULT r = CallWindowProcW(g_origEditProc, hWnd, uMsg, wParam, lParam);
-		CHARRANGE cr = {};
-		SendMessageW(hWnd, EM_EXGETSEL, 0, (LPARAM)&cr);
-		int clickPos = (std::min)((int)cr.cpMin, (int)cr.cpMax);
 		int wordStart = FindWordStart(g_captionHistory, clickPos);
 		g_anchorCharIndex = wordStart;
 		g_anchorSetByUser = true;
