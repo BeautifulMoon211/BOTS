@@ -16,11 +16,11 @@ static volatile long g_pasteInProgress = 0;
 static HWND g_hMainWnd = nullptr;
 static HHOOK g_hKbHook = nullptr;
 static bool g_userScrolledUp = false;
-static HotkeyConfig g_autoCopyHotkey   = { true, true, false, false, 'A' };
+static HotkeyConfig g_autoCopyHotkey = { true, true, false, false, 'A' };
 static HotkeyConfig g_autoDeleteHotkey = { true, true, false, false, 'D' };
 static bool g_altSuppressed = false; // true when we swallowed a VK_MENU keydown to prevent menu-bar activation
 static bool g_altPhysicallyDown = false; // tracks if Alt key is physically pressed (regardless of suppression)
-static ITaskbarList* g_pTaskbarList    = nullptr;
+static ITaskbarList* g_pTaskbarList = nullptr;
 ATOM MyRegisterClass(HINSTANCE hInstance);
 BOOL InitInstance(HINSTANCE, int);
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
@@ -195,36 +195,67 @@ static bool PasteViaClipboard(const std::wstring& text) {
 	SetClipboardData(CF_UNICODETEXT, hMem);
 	CloseClipboard();
 
-	// If Alt is held (e.g. from an Alt+key hotkey), release it from the
-	// system state before sending Ctrl+V.  Otherwise the foreground app
-	// would receive Alt+Ctrl+V, which isn't recognised as paste.
-	// We set g_altSuppressed so that the LL hook will eat the real
-	// physical Alt-keyup later (preventing menu-bar activation).
+	// If Alt is held (e.g. from an Alt+key hotkey), we must release it
+	// before sending Ctrl+V.  Simply injecting Alt-up would look like a
+	// "lone Alt tap" to the foreground app, which activates the menu bar
+	// and swallows the subsequent Ctrl+V.
+	//
+	// Workaround: inject a Ctrl tap (down+up) WHILE Alt is still held.
+	// This makes the app think "Alt was used as a modifier with Ctrl",
+	// so releasing Alt afterwards won't activate the menu bar.
+	// Then we release Alt and send the real Ctrl+V — all in one atomic
+	// SendInput call so nothing can slip in between.
 	if (g_altPhysicallyDown || (GetAsyncKeyState(VK_MENU) & 0x8000)) {
-		INPUT releaseAlt = {};
-		releaseAlt.type = INPUT_KEYBOARD;
-		releaseAlt.ki.wVk = VK_MENU;
-		releaseAlt.ki.dwFlags = KEYEVENTF_KEYUP;
-		SendInput(1, &releaseAlt, sizeof(INPUT));
-		g_altSuppressed = true;
-		Sleep(20);
-	} else {
-		Sleep(10);
+		INPUT inputs[8] = {};
+		int n = 0;
+		// 1) Ctrl down while Alt is held — breaks the "lone Alt" detection
+		inputs[n].type = INPUT_KEYBOARD;
+		inputs[n].ki.wVk = VK_CONTROL;
+		n++;
+		// 2) Ctrl up
+		inputs[n].type = INPUT_KEYBOARD;
+		inputs[n].ki.wVk = VK_CONTROL;
+		inputs[n].ki.dwFlags = KEYEVENTF_KEYUP;
+		n++;
+		// 3) Alt up — no menu activation because Ctrl was pressed with Alt
+		inputs[n].type = INPUT_KEYBOARD;
+		inputs[n].ki.wVk = VK_MENU;
+		inputs[n].ki.dwFlags = KEYEVENTF_KEYUP;
+		n++;
+		// 4-7) Clean Ctrl+V paste
+		inputs[n].type = INPUT_KEYBOARD;
+		inputs[n].ki.wVk = VK_CONTROL;
+		n++;
+		inputs[n].type = INPUT_KEYBOARD;
+		inputs[n].ki.wVk = 'V';
+		n++;
+		inputs[n].type = INPUT_KEYBOARD;
+		inputs[n].ki.wVk = 'V';
+		inputs[n].ki.dwFlags = KEYEVENTF_KEYUP;
+		n++;
+		inputs[n].type = INPUT_KEYBOARD;
+		inputs[n].ki.wVk = VK_CONTROL;
+		inputs[n].ki.dwFlags = KEYEVENTF_KEYUP;
+		n++;
+		SendInput(n, inputs, sizeof(INPUT));
+		g_altSuppressed = true;  // suppress the real physical Alt-keyup later
 	}
-
-	// Send a clean Ctrl+V
-	INPUT inputs[4] = {};
-	inputs[0].type = INPUT_KEYBOARD;
-	inputs[0].ki.wVk = VK_CONTROL;
-	inputs[1].type = INPUT_KEYBOARD;
-	inputs[1].ki.wVk = 'V';
-	inputs[2].type = INPUT_KEYBOARD;
-	inputs[2].ki.wVk = 'V';
-	inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
-	inputs[3].type = INPUT_KEYBOARD;
-	inputs[3].ki.wVk = VK_CONTROL;
-	inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
-	SendInput(4, inputs, sizeof(INPUT));
+	else {
+		Sleep(10);
+		// No Alt held — just send Ctrl+V
+		INPUT inputs[4] = {};
+		inputs[0].type = INPUT_KEYBOARD;
+		inputs[0].ki.wVk = VK_CONTROL;
+		inputs[1].type = INPUT_KEYBOARD;
+		inputs[1].ki.wVk = 'V';
+		inputs[2].type = INPUT_KEYBOARD;
+		inputs[2].ki.wVk = 'V';
+		inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
+		inputs[3].type = INPUT_KEYBOARD;
+		inputs[3].ki.wVk = VK_CONTROL;
+		inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
+		SendInput(4, inputs, sizeof(INPUT));
+	}
 	Sleep(50);
 	if (!oldClipboard.empty()) {
 		if (OpenClipboard(g_hMainWnd)) {
@@ -258,12 +289,12 @@ static void DoFindAndCopyWork() {
 			InterlockedExchange(&g_pasteInProgress, 0);
 			return;
 		}
-		
+
 		// Ensure anchor index is valid - if it's at or beyond the end, copy from the beginning
 		int startIndex = g_anchorHistoryIndex;
 		if (startIndex < 0) startIndex = 0;
 		if (startIndex >= (int)g_captionHistory.length()) startIndex = 0;
-		
+
 		// Copy from startIndex to end
 		std::wstring textToCopy = g_captionHistory.substr(startIndex);
 
@@ -274,7 +305,8 @@ static void DoFindAndCopyWork() {
 		if (!textToCopy.empty()) {
 			bool ok = PasteViaClipboard(textToCopy);
 			SetWindowTextW(g_hMainWnd, ok ? L"[DEBUG] PasteViaClipboard OK" : L"[DEBUG] PasteViaClipboard FAILED");
-		} else {
+		}
+		else {
 			bool ok = PasteViaClipboard(g_captionHistory);
 			SetWindowTextW(g_hMainWnd, ok ? L"[DEBUG] Fallback paste OK" : L"[DEBUG] Fallback paste FAILED");
 		}
@@ -420,21 +452,21 @@ static LRESULT CALLBACK LowLevelKbHook(int nCode, WPARAM wParam, LPARAM lParam) 
 			if (IsAltVk(p->vkCode))
 				return CallNextHookEx(g_hKbHook, nCode, wParam, lParam);
 
-			bool ctrlDown  = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
-			bool shiftDown = (GetAsyncKeyState(VK_SHIFT)   & 0x8000) != 0;
-			bool winDown   = ((GetAsyncKeyState(VK_LWIN) | GetAsyncKeyState(VK_RWIN)) & 0x8000) != 0;
+			bool ctrlDown = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+			bool shiftDown = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+			bool winDown = ((GetAsyncKeyState(VK_LWIN) | GetAsyncKeyState(VK_RWIN)) & 0x8000) != 0;
 
 			// Alt detection: LLKHF_ALTDOWN is reliable here because we let
 			// Alt through to the system.  Also check our physical tracking as fallback.
 			bool altDown = (p->flags & LLKHF_ALTDOWN) != 0
-			            || g_altPhysicallyDown
-			            || ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0);
+				|| g_altPhysicallyDown
+				|| ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0);
 
 			auto matches = [&](const HotkeyConfig& hk) {
 				return hk.vkCode == p->vkCode
-					&& hk.ctrl  == ctrlDown  && hk.shift == shiftDown
-					&& hk.alt   == altDown   && hk.win   == winDown;
-			};
+					&& hk.ctrl == ctrlDown && hk.shift == shiftDown
+					&& hk.alt == altDown && hk.win == winDown;
+				};
 			if (matches(g_autoCopyHotkey)) {
 				PostMessageW(g_hMainWnd, WM_APP_FIND_AND_COPY, 0, 0);
 				return 1;
@@ -491,17 +523,17 @@ LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		return r;
 	}
 	if (uMsg == WM_KEYDOWN) {
-		bool ctrl  = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
-		bool shift = (GetKeyState(VK_SHIFT)   & 0x8000) != 0;
+		bool ctrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+		bool shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
 		// Use the same Alt detection logic as the low-level hook
 		// GetKeyState may not work when Alt is suppressed, so check physical tracking too
-		bool alt   = (GetKeyState(VK_MENU) & 0x8000) != 0 || g_altPhysicallyDown || g_altSuppressed;
-		bool win   = ((GetKeyState(VK_LWIN) | GetKeyState(VK_RWIN)) & 0x8000) != 0;
+		bool alt = (GetKeyState(VK_MENU) & 0x8000) != 0 || g_altPhysicallyDown || g_altSuppressed;
+		bool win = ((GetKeyState(VK_LWIN) | GetKeyState(VK_RWIN)) & 0x8000) != 0;
 		auto matches = [&](const HotkeyConfig& hk) {
 			return hk.vkCode == (UINT)wParam
-				&& hk.ctrl  == ctrl  && hk.shift == shift
-				&& hk.alt   == alt   && hk.win   == win;
-		};
+				&& hk.ctrl == ctrl && hk.shift == shift
+				&& hk.alt == alt && hk.win == win;
+			};
 		if (matches(g_autoCopyHotkey)) {
 			PostMessageW(GetParent(hWnd), WM_APP_FIND_AND_COPY, 0, 0);
 			return 0;
@@ -635,7 +667,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			BYTE alpha = (BYTE)((settings.transparency * 255) / 100);
 			SetLayeredWindowAttributes(hWnd, 0, alpha, LWA_ALPHA);
 		}
-		g_autoCopyHotkey   = settings.autoCopyHotkey;
+		g_autoCopyHotkey = settings.autoCopyHotkey;
 		g_autoDeleteHotkey = settings.autoDeleteHotkey;
 		// Initialize ITaskbarList for taskbar button control
 		CoCreateInstance(CLSID_TaskbarList, nullptr, CLSCTX_INPROC_SERVER,
@@ -682,7 +714,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		if (settings.setTop) {
 			SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-		} else {
+		}
+		else {
 			SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 		}
 		if (settings.setInvisible) {
@@ -692,7 +725,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			LONG_PTR style = GetWindowLongPtrW(hWnd, GWL_STYLE);
 			SetWindowLongPtrW(hWnd, GWL_STYLE, style & ~WS_MINIMIZEBOX);
 			SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
-		} else {
+		}
+		else {
 			SetWindowDisplayAffinity(hWnd, WDA_NONE);
 			if (g_pTaskbarList) g_pTaskbarList->AddTab(hWnd);    // restore taskbar button
 			LONG_PTR style = GetWindowLongPtrW(hWnd, GWL_STYLE);
@@ -707,7 +741,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			BYTE alpha = (BYTE)((settings.transparency * 255) / 100);
 			SetLayeredWindowAttributes(hWnd, 0, alpha, LWA_ALPHA);
 		}
-		g_autoCopyHotkey   = settings.autoCopyHotkey;
+		g_autoCopyHotkey = settings.autoCopyHotkey;
 		g_autoDeleteHotkey = settings.autoDeleteHotkey;
 		return 0;
 	}
