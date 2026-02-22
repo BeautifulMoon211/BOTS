@@ -499,6 +499,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			DeleteMenu(hSysMenu, SC_MAXIMIZE, MF_BYCOMMAND);
 			InsertMenuW(hSysMenu, SC_CLOSE, MF_BYCOMMAND | MF_STRING, IDM_SETTINGS, L"Settings");
 		}
+		if (settings.setTop) {
+			SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+		}
 	}
 	break;
 	case WM_APP_FIND_AND_COPY:
@@ -531,6 +534,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			SendMessageW(hEdit, WM_SETFONT, (WPARAM)g_hCaptionFont, TRUE);
 			ApplyYellowHighlight(hEdit);
 			InvalidateRect(hEdit, nullptr, TRUE);
+		}
+		if (settings.setTop) {
+			SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+		} else {
+			SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 		}
 		return 0;
 	}

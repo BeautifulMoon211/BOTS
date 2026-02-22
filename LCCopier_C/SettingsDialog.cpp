@@ -48,7 +48,7 @@ void SettingsDialog::SaveSettings(const AppSettings& settings) {
 AppSettings SettingsDialog::GetDefaultSettings() {
     AppSettings settings = {};
     settings.darkMode = false;
-    settings.setTop = false;
+    settings.setTop = true;
     settings.setInvisible = false;
     settings.transparency = 100;
     settings.autoCopyHotkey = { true, true, false, false, 'A' };
@@ -392,10 +392,10 @@ ToggleButtonStyle SettingsDialog::GetToggleButtonStyle(int controlId) {
         style.textColorOn = RGB(255, 255, 255);
     }
     else if (controlId == IDC_SETTOP) {
-        style.textOff = L"Topmost";
-        style.textOn = L"Utmost";
-        style.colorOff = s_settings.selectedBgColor;
-        style.colorOn = RGB(240, 240, 240);
+        style.textOff = L"Utmost";
+        style.textOn = L"Topmost";
+        style.colorOff = RGB(240, 240, 240);
+        style.colorOn = s_settings.selectedBgColor;
         style.textColorOff = RGB(0, 0, 0);
         style.textColorOn = RGB(0, 0, 0);
     }
