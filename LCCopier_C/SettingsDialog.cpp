@@ -200,6 +200,10 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hDlg, UINT message, WPARAM wPar
         }
         if (LOWORD(wParam) == IDC_SETINVISIBLE) {
             s_settings.setInvisible = !s_settings.setInvisible;
+            if (s_settings.setInvisible && !s_settings.setTop) {
+                s_settings.setTop = true; // invisible mode requires topmost
+                InvalidateRect(GetDlgItem(hDlg, IDC_SETTOP), nullptr, TRUE);
+            }
             InvalidateRect(GetDlgItem(hDlg, IDC_SETINVISIBLE), nullptr, TRUE);
             return TRUE;
         }

@@ -51,6 +51,7 @@
 #define WM_APP_CLEAR_HISTORY (WM_APP + 4)
 #define WM_APP_TOGGLE_LIVECAPTION (WM_APP + 5)
 #define WM_APP_SETTINGS_CHANGED (WM_APP + 6)
+#define WM_APP_HIDE_TASKBAR     (WM_APP + 7)  // wParam=1 hide, wParam=0 show
 #define IDM_SETTINGS 9001
 
 #ifndef IDC_STATIC

@@ -18,6 +18,7 @@ static HHOOK g_hKbHook = nullptr;
 static bool g_userScrolledUp = false;
 static HotkeyConfig g_autoCopyHotkey   = { true, true, false, false, 'A' };
 static HotkeyConfig g_autoDeleteHotkey = { true, true, false, false, 'D' };
+static ITaskbarList* g_pTaskbarList    = nullptr;
 ATOM MyRegisterClass(HINSTANCE hInstance);
 BOOL InitInstance(HINSTANCE, int);
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
@@ -524,15 +525,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		if (settings.setInvisible) {
 			SetWindowDisplayAffinity(hWnd, WDA_EXCLUDEFROMCAPTURE);
+			SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE); // invisible forces topmost
+			PostMessageW(hWnd, WM_APP_HIDE_TASKBAR, 1, 0); // deferred: hide taskbar button after window is shown
 		}
 		{
 			LONG_PTR exStyle = GetWindowLongPtrW(hWnd, GWL_EXSTYLE);
-			SetWindowLongPtrW(hWnd, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
 			BYTE alpha = (BYTE)((settings.transparency * 255) / 100);
 			SetLayeredWindowAttributes(hWnd, 0, alpha, LWA_ALPHA);
 		}
 		g_autoCopyHotkey   = settings.autoCopyHotkey;
 		g_autoDeleteHotkey = settings.autoDeleteHotkey;
+		// Initialize ITaskbarList for taskbar button control
+		CoCreateInstance(CLSID_TaskbarList, nullptr, CLSCTX_INPROC_SERVER,
+			IID_ITaskbarList, reinterpret_cast<void**>(&g_pTaskbarList));
+		if (g_pTaskbarList) g_pTaskbarList->HrInit();
 	}
 	break;
 	case WM_APP_FIND_AND_COPY:
@@ -540,6 +546,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		return 0;
 	case WM_APP_CLEAR_HISTORY:
 		DoClearHistory();
+		return 0;
+	case WM_APP_HIDE_TASKBAR:
+		if (g_pTaskbarList) {
+			if (wParam) g_pTaskbarList->DeleteTab(hWnd);
+			else        g_pTaskbarList->AddTab(hWnd);
+		}
 		return 0;
 	case WM_APP_SETTINGS_CHANGED:
 	{
@@ -573,8 +585,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		if (settings.setInvisible) {
 			SetWindowDisplayAffinity(hWnd, WDA_EXCLUDEFROMCAPTURE);
+			SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE); // invisible forces topmost
+			if (g_pTaskbarList) g_pTaskbarList->DeleteTab(hWnd); // hide from taskbar without style change
 		} else {
 			SetWindowDisplayAffinity(hWnd, WDA_NONE);
+			if (g_pTaskbarList) g_pTaskbarList->AddTab(hWnd);    // restore taskbar button
 		}
 		{
 			LONG_PTR exStyle = GetWindowLongPtrW(hWnd, GWL_EXSTYLE);
@@ -658,6 +673,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		KillTimer(hWnd, IDT_POLL_CAPTION);
 		if (g_hEditBrush) { DeleteObject(g_hEditBrush); g_hEditBrush = nullptr; }
 		if (g_hCaptionFont) { DeleteObject(g_hCaptionFont); g_hCaptionFont = nullptr; }
+		if (g_pTaskbarList) { g_pTaskbarList->Release(); g_pTaskbarList = nullptr; }
 		PostQuitMessage(0);
 		break;
 	default:

@@ -15,6 +15,7 @@
 #include <UIAutomation.h>
 #include <ole2.h>
 #include <shellapi.h>
+#include <shlobj.h>    // ITaskbarList
 #pragma comment(lib, "dwmapi.lib")
 // C RunTime Header Files
 #include <stdlib.h>
