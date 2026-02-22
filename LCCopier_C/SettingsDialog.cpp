@@ -305,6 +305,9 @@ void SettingsDialog::InitializeControls(HWND hDlg) {
     SendDlgItemMessageW(hDlg, IDC_TRANSPARENCY_SLIDER, TBM_SETPOS, TRUE, 100);
     SendDlgItemMessageW(hDlg, IDC_TEXTSIZE_SLIDER, TBM_SETRANGE, TRUE, MAKELONG(8, 28));
     SendDlgItemMessageW(hDlg, IDC_TEXTSIZE_SLIDER, TBM_SETPOS, TRUE, 12);
+    // Win key combinations are intercepted by the OS and cannot be reliably used
+    EnableWindow(GetDlgItem(hDlg, IDC_AUTOCOPY_WIN), FALSE);
+    EnableWindow(GetDlgItem(hDlg, IDC_AUTODELETE_WIN), FALSE);
 }
 
 void SettingsDialog::LoadSettingsToControls(HWND hDlg) {
@@ -317,14 +320,14 @@ void SettingsDialog::LoadSettingsToControls(HWND hDlg) {
     CheckDlgButton(hDlg, IDC_AUTOCOPY_CTRL, s_settings.autoCopyHotkey.ctrl ? BST_CHECKED : BST_UNCHECKED);
     CheckDlgButton(hDlg, IDC_AUTOCOPY_SHIFT, s_settings.autoCopyHotkey.shift ? BST_CHECKED : BST_UNCHECKED);
     CheckDlgButton(hDlg, IDC_AUTOCOPY_ALT, s_settings.autoCopyHotkey.alt ? BST_CHECKED : BST_UNCHECKED);
-    CheckDlgButton(hDlg, IDC_AUTOCOPY_WIN, s_settings.autoCopyHotkey.win ? BST_CHECKED : BST_UNCHECKED);
+    CheckDlgButton(hDlg, IDC_AUTOCOPY_WIN, BST_UNCHECKED);
     wchar_t keyName[32];
     wsprintfW(keyName, L"%c", (wchar_t)s_settings.autoCopyHotkey.vkCode);
     SetDlgItemTextW(hDlg, IDC_AUTOCOPY_KEY, keyName);
     CheckDlgButton(hDlg, IDC_AUTODELETE_CTRL, s_settings.autoDeleteHotkey.ctrl ? BST_CHECKED : BST_UNCHECKED);
     CheckDlgButton(hDlg, IDC_AUTODELETE_SHIFT, s_settings.autoDeleteHotkey.shift ? BST_CHECKED : BST_UNCHECKED);
     CheckDlgButton(hDlg, IDC_AUTODELETE_ALT, s_settings.autoDeleteHotkey.alt ? BST_CHECKED : BST_UNCHECKED);
-    CheckDlgButton(hDlg, IDC_AUTODELETE_WIN, s_settings.autoDeleteHotkey.win ? BST_CHECKED : BST_UNCHECKED);
+    CheckDlgButton(hDlg, IDC_AUTODELETE_WIN, BST_UNCHECKED);
     wsprintfW(keyName, L"%c", (wchar_t)s_settings.autoDeleteHotkey.vkCode);
     SetDlgItemTextW(hDlg, IDC_AUTODELETE_KEY, keyName);
     SendDlgItemMessageW(hDlg, IDC_TEXTSIZE_SLIDER, TBM_SETPOS, TRUE, s_settings.textSize);

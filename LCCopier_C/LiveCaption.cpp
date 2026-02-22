@@ -18,6 +18,8 @@ static HHOOK g_hKbHook = nullptr;
 static bool g_userScrolledUp = false;
 static HotkeyConfig g_autoCopyHotkey   = { true, true, false, false, 'A' };
 static HotkeyConfig g_autoDeleteHotkey = { true, true, false, false, 'D' };
+static bool g_altSuppressed = false; // true when we swallowed a VK_MENU keydown to prevent menu-bar activation
+static bool g_altPhysicallyDown = false; // tracks if Alt key is physically pressed (regardless of suppression)
 static ITaskbarList* g_pTaskbarList    = nullptr;
 ATOM MyRegisterClass(HINSTANCE hInstance);
 BOOL InitInstance(HINSTANCE, int);
@@ -32,6 +34,12 @@ static LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
 static bool PasteViaClipboard(const std::wstring& text);
 static void DoFindAndCopyWork();
 static void UpdateCaptionHistory(const std::wstring& currentText);
+// Helper: returns true for any Alt virtual-key code.
+// In a low-level keyboard hook, the physical Alt key reports as VK_LMENU (left)
+// or VK_RMENU (right), NOT as VK_MENU.  We must handle all three.
+static bool IsAltVk(DWORD vk) {
+	return vk == VK_MENU || vk == VK_LMENU || vk == VK_RMENU;
+}
 
 static BOOL CALLBACK FindLiveCaptionWindow(HWND hwnd, LPARAM lParam) {
 	WCHAR title[256] = {};
@@ -219,16 +227,42 @@ static bool PasteViaClipboard(const std::wstring& text) {
 	return true;
 }
 static void DoFindAndCopyWork() {
-	if (InterlockedCompareExchange(&g_pasteInProgress, 1, 0) != 0) return;
+	// DEBUG: change title to confirm this function is called
+	SetWindowTextW(g_hMainWnd, L"[DEBUG] DoFindAndCopyWork CALLED");
+
+	if (InterlockedCompareExchange(&g_pasteInProgress, 1, 0) != 0) {
+		SetWindowTextW(g_hMainWnd, L"[DEBUG] BLOCKED by pasteInProgress");
+		return;
+	}
 	try {
-		if (!g_captionHistory.empty()) {
-			if (g_anchorHistoryIndex >= 0 && g_anchorHistoryIndex < (int)g_captionHistory.length()) {
-				std::wstring textToCopy = g_captionHistory.substr(g_anchorHistoryIndex);
-				PasteViaClipboard(textToCopy);
-			}
+		if (g_captionHistory.empty()) {
+			SetWindowTextW(g_hMainWnd, L"[DEBUG] captionHistory is EMPTY");
+			InterlockedExchange(&g_pasteInProgress, 0);
+			return;
+		}
+		
+		// Ensure anchor index is valid - if it's at or beyond the end, copy from the beginning
+		int startIndex = g_anchorHistoryIndex;
+		if (startIndex < 0) startIndex = 0;
+		if (startIndex >= (int)g_captionHistory.length()) startIndex = 0;
+		
+		// Copy from startIndex to end
+		std::wstring textToCopy = g_captionHistory.substr(startIndex);
+
+		wchar_t dbgBuf[256];
+		wsprintfW(dbgBuf, L"[DEBUG] textLen=%d startIdx=%d copyLen=%d", (int)g_captionHistory.length(), startIndex, (int)textToCopy.length());
+		SetWindowTextW(g_hMainWnd, dbgBuf);
+
+		if (!textToCopy.empty()) {
+			bool ok = PasteViaClipboard(textToCopy);
+			SetWindowTextW(g_hMainWnd, ok ? L"[DEBUG] PasteViaClipboard OK" : L"[DEBUG] PasteViaClipboard FAILED");
+		} else {
+			bool ok = PasteViaClipboard(g_captionHistory);
+			SetWindowTextW(g_hMainWnd, ok ? L"[DEBUG] Fallback paste OK" : L"[DEBUG] Fallback paste FAILED");
 		}
 	}
 	catch (...) {
+		SetWindowTextW(g_hMainWnd, L"[DEBUG] EXCEPTION in DoFindAndCopyWork");
 	}
 	InterlockedExchange(&g_pasteInProgress, 0);
 }
@@ -342,24 +376,72 @@ static void UpdateCaptionHistory(const std::wstring& currentText) {
 }
 
 static LRESULT CALLBACK LowLevelKbHook(int nCode, WPARAM wParam, LPARAM lParam) {
-	if (nCode == HC_ACTION && wParam == WM_KEYDOWN && g_hMainWnd) {
+	if (nCode == HC_ACTION && g_hMainWnd) {
 		auto* p = reinterpret_cast<KBDLLHOOKSTRUCT*>(lParam);
-		bool ctrlDown  = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
-		bool shiftDown = (GetAsyncKeyState(VK_SHIFT)   & 0x8000) != 0;
-		bool altDown   = (GetAsyncKeyState(VK_MENU)    & 0x8000) != 0;
-		bool winDown   = ((GetAsyncKeyState(VK_LWIN) | GetAsyncKeyState(VK_RWIN)) & 0x8000) != 0;
-		auto matches = [&](const HotkeyConfig& hk) {
-			return hk.vkCode == p->vkCode
-				&& hk.ctrl  == ctrlDown  && hk.shift == shiftDown
-				&& hk.alt   == altDown   && hk.win   == winDown;
-		};
-		if (matches(g_autoCopyHotkey)) {
-			PostMessageW(g_hMainWnd, WM_APP_FIND_AND_COPY, 0, 0);
-			return 1;
+
+		// Handle Alt keyup
+		if ((wParam == WM_KEYUP || wParam == WM_SYSKEYUP) && IsAltVk(p->vkCode)) {
+			if (g_altSuppressed) {
+				g_altSuppressed = false;
+				g_altPhysicallyDown = false;
+				return 1;
+			}
+			g_altPhysicallyDown = false;
 		}
-		if (matches(g_autoDeleteHotkey)) {
-			PostMessageW(g_hMainWnd, WM_APP_CLEAR_HISTORY, 0, 0);
-			return 1;
+
+		if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) {
+			bool ctrlDown  = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+			bool shiftDown = (GetAsyncKeyState(VK_SHIFT)   & 0x8000) != 0;
+			bool winDown   = ((GetAsyncKeyState(VK_LWIN) | GetAsyncKeyState(VK_RWIN)) & 0x8000) != 0;
+			
+			// Track Alt physical state when Alt key is pressed
+			if (IsAltVk(p->vkCode)) {
+				g_altPhysicallyDown = true;
+			}
+
+			// For Alt detection: check all sources and use OR logic
+			// This ensures we catch Alt even when it was suppressed
+			bool altDown = (p->flags & LLKHF_ALTDOWN) != 0  // Hook flag (reliable when not suppressed)
+			            || g_altPhysicallyDown                 // Physical tracking (set when Alt pressed)
+			            || g_altSuppressed                     // Suppressed state (set when we suppress Alt)
+			            || ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0); // Fallback check
+
+			// Check for hotkey matches FIRST (before suppressing Alt)
+			// This handles the case where the main key is pressed
+			auto matches = [&](const HotkeyConfig& hk) {
+				return hk.vkCode == p->vkCode
+					&& hk.ctrl  == ctrlDown  && hk.shift == shiftDown
+					&& hk.alt   == altDown   && hk.win   == winDown;
+			};
+			if (matches(g_autoCopyHotkey)) {
+				PostMessageW(g_hMainWnd, WM_APP_FIND_AND_COPY, 0, 0);
+				// Don't reset Alt tracking here - let it reset on keyup to avoid timing issues
+				return 1;
+			}
+			if (matches(g_autoDeleteHotkey)) {
+				PostMessageW(g_hMainWnd, WM_APP_CLEAR_HISTORY, 0, 0);
+				// Don't reset Alt tracking here - let it reset on keyup to avoid timing issues
+				return 1;
+			}
+
+			// Now handle Alt suppression - suppress Alt if it's part of a configured hotkey
+			// and the other modifiers already match (to prevent menu activation)
+			if (IsAltVk(p->vkCode)) {
+				auto altPrefixMatches = [&](const HotkeyConfig& hk) {
+					// Alt must be in the hotkey, and all other required modifiers must match
+					// For Alt+D (no Ctrl/Shift), we need: hk.alt==true, hk.ctrl==false, ctrlDown==false, etc.
+					return hk.alt
+						&& hk.ctrl  == ctrlDown
+						&& hk.shift == shiftDown
+						&& hk.win   == winDown;
+				};
+				if (altPrefixMatches(g_autoCopyHotkey) || altPrefixMatches(g_autoDeleteHotkey)) {
+					g_altSuppressed = true;
+					// Ensure physical tracking is set (should already be, but be safe)
+					g_altPhysicallyDown = true;
+					return 1;
+				}
+			}
 		}
 	}
 	return CallNextHookEx(g_hKbHook, nCode, wParam, lParam);
@@ -410,7 +492,9 @@ LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 	if (uMsg == WM_KEYDOWN) {
 		bool ctrl  = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
 		bool shift = (GetKeyState(VK_SHIFT)   & 0x8000) != 0;
-		bool alt   = (GetKeyState(VK_MENU)    & 0x8000) != 0;
+		// Use the same Alt detection logic as the low-level hook
+		// GetKeyState may not work when Alt is suppressed, so check physical tracking too
+		bool alt   = (GetKeyState(VK_MENU) & 0x8000) != 0 || g_altPhysicallyDown || g_altSuppressed;
 		bool win   = ((GetKeyState(VK_LWIN) | GetKeyState(VK_RWIN)) & 0x8000) != 0;
 		auto matches = [&](const HotkeyConfig& hk) {
 			return hk.vkCode == (UINT)wParam
