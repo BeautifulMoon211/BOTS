@@ -505,6 +505,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		if (settings.setInvisible) {
 			SetWindowDisplayAffinity(hWnd, WDA_EXCLUDEFROMCAPTURE);
 		}
+		{
+			LONG_PTR exStyle = GetWindowLongPtrW(hWnd, GWL_EXSTYLE);
+			SetWindowLongPtrW(hWnd, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
+			BYTE alpha = (BYTE)((settings.transparency * 255) / 100);
+			SetLayeredWindowAttributes(hWnd, 0, alpha, LWA_ALPHA);
+		}
 	}
 	break;
 	case WM_APP_FIND_AND_COPY:
@@ -547,6 +553,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			SetWindowDisplayAffinity(hWnd, WDA_EXCLUDEFROMCAPTURE);
 		} else {
 			SetWindowDisplayAffinity(hWnd, WDA_NONE);
+		}
+		{
+			LONG_PTR exStyle = GetWindowLongPtrW(hWnd, GWL_EXSTYLE);
+			if (!(exStyle & WS_EX_LAYERED)) {
+				SetWindowLongPtrW(hWnd, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
+			}
+			BYTE alpha = (BYTE)((settings.transparency * 255) / 100);
+			SetLayeredWindowAttributes(hWnd, 0, alpha, LWA_ALPHA);
 		}
 		return 0;
 	}

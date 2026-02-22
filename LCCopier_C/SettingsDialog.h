@@ -43,6 +43,7 @@ private:
     static HWND s_hDlg;
     static HWND s_hParent;
     static AppSettings s_settings;
+    static int s_originalTransparency;
 
     static INT_PTR CALLBACK DialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
     static void InitializeControls(HWND hDlg);
@@ -51,6 +52,7 @@ private:
     static void ApplySettings();
     static void RestoreDefaults(HWND hDlg);
     static void UpdatePreviewText(HWND hDlg);
+    static void PreviewMainWindowTransparency(int transparency);
     static void DrawToggleButton(LPDRAWITEMSTRUCT lpDIS, bool state, const ToggleButtonStyle& style);
     static ToggleButtonStyle GetToggleButtonStyle(int controlId);
 

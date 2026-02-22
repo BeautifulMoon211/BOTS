@@ -9,6 +9,7 @@
 HWND SettingsDialog::s_hDlg = nullptr;
 HWND SettingsDialog::s_hParent = nullptr;
 AppSettings SettingsDialog::s_settings = {};
+int SettingsDialog::s_originalTransparency = 100;
 
 void SettingsDialog::Show(HWND hParent) {
     if (s_hDlg && IsWindow(s_hDlg)) {
@@ -154,6 +155,7 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hDlg, UINT message, WPARAM wPar
         s_hDlg = hDlg;
         InitializeControls(hDlg);
         LoadSettingsToControls(hDlg);
+        s_originalTransparency = s_settings.transparency; // remember for cancel restore
         return TRUE;
     case WM_COMMAND:
         if (LOWORD(wParam) == IDC_CLOSE_SETTINGS) {
@@ -164,6 +166,7 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hDlg, UINT message, WPARAM wPar
             return TRUE;
         }
         if (LOWORD(wParam) == IDCANCEL) {
+            PreviewMainWindowTransparency(s_originalTransparency); // revert live preview
             Close();
             return TRUE;
         }
@@ -277,6 +280,7 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hDlg, UINT message, WPARAM wPar
         if ((HWND)lParam == GetDlgItem(hDlg, IDC_TRANSPARENCY_SLIDER)) {
             int pos = (int)SendDlgItemMessageW(hDlg, IDC_TRANSPARENCY_SLIDER, TBM_GETPOS, 0, 0);
             SetDlgItemInt(hDlg, IDC_TRANSPARENCY_VALUE, pos, FALSE);
+            PreviewMainWindowTransparency(pos);
         }
         if ((HWND)lParam == GetDlgItem(hDlg, IDC_TEXTSIZE_SLIDER)) {
             int pos = (int)SendDlgItemMessageW(hDlg, IDC_TEXTSIZE_SLIDER, TBM_GETPOS, 0, 0);
@@ -285,6 +289,7 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hDlg, UINT message, WPARAM wPar
         }
         return TRUE;
     case WM_CLOSE:
+        PreviewMainWindowTransparency(s_originalTransparency); // revert live preview
         Close();
         return TRUE;
     }
@@ -304,6 +309,7 @@ void SettingsDialog::LoadSettingsToControls(HWND hDlg) {
     InvalidateRect(GetDlgItem(hDlg, IDC_SETINVISIBLE), nullptr, TRUE);
     SendDlgItemMessageW(hDlg, IDC_TRANSPARENCY_SLIDER, TBM_SETPOS, TRUE, s_settings.transparency);
     SetDlgItemInt(hDlg, IDC_TRANSPARENCY_VALUE, s_settings.transparency, FALSE);
+
     CheckDlgButton(hDlg, IDC_AUTOCOPY_CTRL, s_settings.autoCopyHotkey.ctrl ? BST_CHECKED : BST_UNCHECKED);
     CheckDlgButton(hDlg, IDC_AUTOCOPY_SHIFT, s_settings.autoCopyHotkey.shift ? BST_CHECKED : BST_UNCHECKED);
     CheckDlgButton(hDlg, IDC_AUTOCOPY_ALT, s_settings.autoCopyHotkey.alt ? BST_CHECKED : BST_UNCHECKED);
@@ -350,6 +356,16 @@ void SettingsDialog::ApplySettings() {
     }
 }
 
+void SettingsDialog::PreviewMainWindowTransparency(int transparency) {
+    if (!s_hParent || !IsWindow(s_hParent)) return;
+    LONG_PTR exStyle = GetWindowLongPtrW(s_hParent, GWL_EXSTYLE);
+    if (!(exStyle & WS_EX_LAYERED)) {
+        SetWindowLongPtrW(s_hParent, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
+    }
+    BYTE alpha = (BYTE)((transparency * 255) / 100);
+    SetLayeredWindowAttributes(s_hParent, 0, alpha, LWA_ALPHA);
+}
+
 void SettingsDialog::RestoreDefaults(HWND hDlg) {
     s_settings = GetDefaultSettings();
     LoadSettingsToControls(hDlg);
@@ -360,7 +376,6 @@ void SettingsDialog::RestoreDefaults(HWND hDlg) {
 void SettingsDialog::UpdatePreviewText(HWND hDlg) {
     HWND hPreview = GetDlgItem(hDlg, IDC_PREVIEW_TEXT);
     int textSize = (int)SendDlgItemMessageW(hDlg, IDC_TEXTSIZE_SLIDER, TBM_GETPOS, 0, 0);
-    SendMessageW(hPreview, EM_SETBKGNDCOLOR, 0, s_settings.bgColor);
     SetWindowTextW(hPreview, L"LiveCaption is a Windows desktop application that captures text from Windows' built-in Live Caption feature and displays it in a customizable window.\n "
         L"The app monitors the Live Caption accessibility feature using UI Automation COM API and extracts the real-time transcribed text. It provides enhanced functionality beyond the default Live Caption, including persistent caption history, customizable appearance (colors, text size, transparency), and keyboard shortcuts for copying and clearing text.\n"
         L" The application allows users to keep captions visible even when the original Live Caption window is hidden, making it useful for accessibility, transcription, or recording purposes. All settings are stored in the Windows Registry and can be customized through a dedicated settings panel with features like dark mode, always-on-top mode, and adjustable window transparency.");
@@ -380,6 +395,7 @@ void SettingsDialog::UpdatePreviewText(HWND hDlg) {
     SendMessageW(hPreview, EM_SETSEL, 0, 0);
     SendMessageW(hPreview, EM_HIDESELECTION, TRUE, 0);
 }
+
 
 ToggleButtonStyle SettingsDialog::GetToggleButtonStyle(int controlId) {
     ToggleButtonStyle style = {};
