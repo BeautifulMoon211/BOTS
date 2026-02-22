@@ -194,7 +194,25 @@ static bool PasteViaClipboard(const std::wstring& text) {
 	}
 	SetClipboardData(CF_UNICODETEXT, hMem);
 	CloseClipboard();
-	Sleep(10);
+
+	// If Alt is held (e.g. from an Alt+key hotkey), release it from the
+	// system state before sending Ctrl+V.  Otherwise the foreground app
+	// would receive Alt+Ctrl+V, which isn't recognised as paste.
+	// We set g_altSuppressed so that the LL hook will eat the real
+	// physical Alt-keyup later (preventing menu-bar activation).
+	if (g_altPhysicallyDown || (GetAsyncKeyState(VK_MENU) & 0x8000)) {
+		INPUT releaseAlt = {};
+		releaseAlt.type = INPUT_KEYBOARD;
+		releaseAlt.ki.wVk = VK_MENU;
+		releaseAlt.ki.dwFlags = KEYEVENTF_KEYUP;
+		SendInput(1, &releaseAlt, sizeof(INPUT));
+		g_altSuppressed = true;
+		Sleep(20);
+	} else {
+		Sleep(10);
+	}
+
+	// Send a clean Ctrl+V
 	INPUT inputs[4] = {};
 	inputs[0].type = INPUT_KEYBOARD;
 	inputs[0].ki.wVk = VK_CONTROL;
@@ -379,35 +397,39 @@ static LRESULT CALLBACK LowLevelKbHook(int nCode, WPARAM wParam, LPARAM lParam) 
 	if (nCode == HC_ACTION && g_hMainWnd) {
 		auto* p = reinterpret_cast<KBDLLHOOKSTRUCT*>(lParam);
 
-		// Handle Alt keyup
-		if ((wParam == WM_KEYUP || wParam == WM_SYSKEYUP) && IsAltVk(p->vkCode)) {
-			if (g_altSuppressed) {
-				g_altSuppressed = false;
-				g_altPhysicallyDown = false;
-				return 1;
+		// Track Alt physical state
+		if (IsAltVk(p->vkCode)) {
+			if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) {
+				g_altPhysicallyDown = true;
 			}
-			g_altPhysicallyDown = false;
+			else if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
+				g_altPhysicallyDown = false;
+				// If we injected an Alt-up in PasteViaClipboard, suppress the real
+				// physical Alt-up so Windows doesn't activate the menu bar.
+				if (g_altSuppressed) {
+					g_altSuppressed = false;
+					return 1;
+				}
+			}
 		}
 
+		// --- Hotkey matching on keydown / syskeydown ---
 		if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) {
+			// Skip the Alt key itself — we never consume Alt keydown so that
+			// system shortcuts (Alt+Tab, Alt+F4, …) keep working.
+			if (IsAltVk(p->vkCode))
+				return CallNextHookEx(g_hKbHook, nCode, wParam, lParam);
+
 			bool ctrlDown  = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
 			bool shiftDown = (GetAsyncKeyState(VK_SHIFT)   & 0x8000) != 0;
 			bool winDown   = ((GetAsyncKeyState(VK_LWIN) | GetAsyncKeyState(VK_RWIN)) & 0x8000) != 0;
-			
-			// Track Alt physical state when Alt key is pressed
-			if (IsAltVk(p->vkCode)) {
-				g_altPhysicallyDown = true;
-			}
 
-			// For Alt detection: check all sources and use OR logic
-			// This ensures we catch Alt even when it was suppressed
-			bool altDown = (p->flags & LLKHF_ALTDOWN) != 0  // Hook flag (reliable when not suppressed)
-			            || g_altPhysicallyDown                 // Physical tracking (set when Alt pressed)
-			            || g_altSuppressed                     // Suppressed state (set when we suppress Alt)
-			            || ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0); // Fallback check
+			// Alt detection: LLKHF_ALTDOWN is reliable here because we let
+			// Alt through to the system.  Also check our physical tracking as fallback.
+			bool altDown = (p->flags & LLKHF_ALTDOWN) != 0
+			            || g_altPhysicallyDown
+			            || ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0);
 
-			// Check for hotkey matches FIRST (before suppressing Alt)
-			// This handles the case where the main key is pressed
 			auto matches = [&](const HotkeyConfig& hk) {
 				return hk.vkCode == p->vkCode
 					&& hk.ctrl  == ctrlDown  && hk.shift == shiftDown
@@ -415,32 +437,11 @@ static LRESULT CALLBACK LowLevelKbHook(int nCode, WPARAM wParam, LPARAM lParam) 
 			};
 			if (matches(g_autoCopyHotkey)) {
 				PostMessageW(g_hMainWnd, WM_APP_FIND_AND_COPY, 0, 0);
-				// Don't reset Alt tracking here - let it reset on keyup to avoid timing issues
 				return 1;
 			}
 			if (matches(g_autoDeleteHotkey)) {
 				PostMessageW(g_hMainWnd, WM_APP_CLEAR_HISTORY, 0, 0);
-				// Don't reset Alt tracking here - let it reset on keyup to avoid timing issues
 				return 1;
-			}
-
-			// Now handle Alt suppression - suppress Alt if it's part of a configured hotkey
-			// and the other modifiers already match (to prevent menu activation)
-			if (IsAltVk(p->vkCode)) {
-				auto altPrefixMatches = [&](const HotkeyConfig& hk) {
-					// Alt must be in the hotkey, and all other required modifiers must match
-					// For Alt+D (no Ctrl/Shift), we need: hk.alt==true, hk.ctrl==false, ctrlDown==false, etc.
-					return hk.alt
-						&& hk.ctrl  == ctrlDown
-						&& hk.shift == shiftDown
-						&& hk.win   == winDown;
-				};
-				if (altPrefixMatches(g_autoCopyHotkey) || altPrefixMatches(g_autoDeleteHotkey)) {
-					g_altSuppressed = true;
-					// Ensure physical tracking is set (should already be, but be safe)
-					g_altPhysicallyDown = true;
-					return 1;
-				}
 			}
 		}
 	}
