@@ -542,6 +542,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			SetWindowDisplayAffinity(hWnd, WDA_EXCLUDEFROMCAPTURE);
 			SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE); // invisible forces topmost
 			PostMessageW(hWnd, WM_APP_HIDE_TASKBAR, 1, 0); // deferred: hide taskbar button after window is shown
+			LONG_PTR style = GetWindowLongPtrW(hWnd, GWL_STYLE);
+			SetWindowLongPtrW(hWnd, GWL_STYLE, style & ~WS_MINIMIZEBOX);
 		}
 		{
 			LONG_PTR exStyle = GetWindowLongPtrW(hWnd, GWL_EXSTYLE);
@@ -602,9 +604,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			SetWindowDisplayAffinity(hWnd, WDA_EXCLUDEFROMCAPTURE);
 			SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE); // invisible forces topmost
 			if (g_pTaskbarList) g_pTaskbarList->DeleteTab(hWnd); // hide from taskbar without style change
+			LONG_PTR style = GetWindowLongPtrW(hWnd, GWL_STYLE);
+			SetWindowLongPtrW(hWnd, GWL_STYLE, style & ~WS_MINIMIZEBOX);
+			SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
 		} else {
 			SetWindowDisplayAffinity(hWnd, WDA_NONE);
 			if (g_pTaskbarList) g_pTaskbarList->AddTab(hWnd);    // restore taskbar button
+			LONG_PTR style = GetWindowLongPtrW(hWnd, GWL_STYLE);
+			SetWindowLongPtrW(hWnd, GWL_STYLE, style | WS_MINIMIZEBOX);
+			SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
 		}
 		{
 			LONG_PTR exStyle = GetWindowLongPtrW(hWnd, GWL_EXSTYLE);
