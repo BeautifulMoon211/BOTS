@@ -366,6 +366,7 @@ static LRESULT CALLBACK LowLevelKbHook(int nCode, WPARAM wParam, LPARAM lParam) 
 }
 
 static WNDPROC g_origEditProc = nullptr;
+static bool g_suppressNextAnchorClick = false; // true when the next LButtonDown is an app-activation click
 
 LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 	if (uMsg == WM_MOUSEWHEEL || uMsg == WM_VSCROLL ||
@@ -380,7 +381,22 @@ LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		}
 		return r;
 	}
+	if (uMsg == WM_MOUSEACTIVATE) {
+		// Only suppress the upcoming WM_LBUTTONDOWN if this click is bringing the
+		// application back from another app (main window is not the foreground window).
+		// If the main window is already active, this is a normal intra-app click and
+		// should update the anchor as usual.
+		if (GetForegroundWindow() != g_hMainWnd) {
+			g_suppressNextAnchorClick = true;
+		}
+		return CallWindowProcW(g_origEditProc, hWnd, uMsg, wParam, lParam);
+	}
 	if (uMsg == WM_LBUTTONDOWN) {
+		if (g_suppressNextAnchorClick) {
+			// This click was only to bring the app back into focus — preserve the existing anchor.
+			g_suppressNextAnchorClick = false;
+			return CallWindowProcW(g_origEditProc, hWnd, uMsg, wParam, lParam);
+		}
 		LRESULT r = CallWindowProcW(g_origEditProc, hWnd, uMsg, wParam, lParam);
 		CHARRANGE cr = {};
 		SendMessageW(hWnd, EM_EXGETSEL, 0, (LPARAM)&cr);
