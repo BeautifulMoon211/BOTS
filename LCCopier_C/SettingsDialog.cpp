@@ -16,7 +16,6 @@ void SettingsDialog::Show(HWND hParent) {
         SetForegroundWindow(s_hDlg);
         return;
     }
-    LoadLibraryW(L"Msftedit.dll");
     s_hParent = hParent;
     s_settings = LoadSettings();
     DialogBoxParamW(GetModuleHandle(nullptr), MAKEINTRESOURCEW(IDD_SETTINGS_DIALOG),
@@ -29,10 +28,6 @@ void SettingsDialog::Close() {
         EndDialog(s_hDlg, 0);
         s_hDlg = nullptr;
     }
-}
-
-bool SettingsDialog::IsOpen() {
-    return s_hDlg && IsWindow(s_hDlg);
 }
 
 AppSettings SettingsDialog::LoadSettings() {

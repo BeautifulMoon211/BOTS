@@ -16,11 +16,11 @@ static volatile long g_pasteInProgress = 0;
 static HWND g_hMainWnd = nullptr;
 static HHOOK g_hKbHook = nullptr;
 static bool g_userScrolledUp = false;
-static HotkeyConfig g_autoCopyHotkey = { true, true, false, false, 'A' };
+static HotkeyConfig g_autoCopyHotkey   = { true, true, false, false, 'A' };
 static HotkeyConfig g_autoDeleteHotkey = { true, true, false, false, 'D' };
 static bool g_altSuppressed = false; // true when we swallowed a VK_MENU keydown to prevent menu-bar activation
 static bool g_altPhysicallyDown = false; // tracks if Alt key is physically pressed (regardless of suppression)
-static ITaskbarList* g_pTaskbarList = nullptr;
+static ITaskbarList* g_pTaskbarList    = nullptr;
 ATOM MyRegisterClass(HINSTANCE hInstance);
 BOOL InitInstance(HINSTANCE, int);
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
@@ -276,16 +276,9 @@ static bool PasteViaClipboard(const std::wstring& text) {
 	return true;
 }
 static void DoFindAndCopyWork() {
-	// DEBUG: change title to confirm this function is called
-	SetWindowTextW(g_hMainWnd, L"[DEBUG] DoFindAndCopyWork CALLED");
-
-	if (InterlockedCompareExchange(&g_pasteInProgress, 1, 0) != 0) {
-		SetWindowTextW(g_hMainWnd, L"[DEBUG] BLOCKED by pasteInProgress");
-		return;
-	}
+	if (InterlockedCompareExchange(&g_pasteInProgress, 1, 0) != 0) return;
 	try {
 		if (g_captionHistory.empty()) {
-			SetWindowTextW(g_hMainWnd, L"[DEBUG] captionHistory is EMPTY");
 			InterlockedExchange(&g_pasteInProgress, 0);
 			return;
 		}
@@ -297,22 +290,11 @@ static void DoFindAndCopyWork() {
 
 		// Copy from startIndex to end
 		std::wstring textToCopy = g_captionHistory.substr(startIndex);
-
-		wchar_t dbgBuf[256];
-		wsprintfW(dbgBuf, L"[DEBUG] textLen=%d startIdx=%d copyLen=%d", (int)g_captionHistory.length(), startIndex, (int)textToCopy.length());
-		SetWindowTextW(g_hMainWnd, dbgBuf);
-
 		if (!textToCopy.empty()) {
-			bool ok = PasteViaClipboard(textToCopy);
-			SetWindowTextW(g_hMainWnd, ok ? L"[DEBUG] PasteViaClipboard OK" : L"[DEBUG] PasteViaClipboard FAILED");
-		}
-		else {
-			bool ok = PasteViaClipboard(g_captionHistory);
-			SetWindowTextW(g_hMainWnd, ok ? L"[DEBUG] Fallback paste OK" : L"[DEBUG] Fallback paste FAILED");
+			PasteViaClipboard(textToCopy);
 		}
 	}
 	catch (...) {
-		SetWindowTextW(g_hMainWnd, L"[DEBUG] EXCEPTION in DoFindAndCopyWork");
 	}
 	InterlockedExchange(&g_pasteInProgress, 0);
 }
@@ -641,7 +623,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			SendMessageW(hEdit, EM_SETBKGNDCOLOR, 0, (LPARAM)settings.bgColor);
 			SendMessageW(hEdit, WM_SETFONT, (WPARAM)g_hCaptionFont, TRUE);
 			SendMessageW(hEdit, EM_HIDESELECTION, TRUE, FALSE);
-			SendMessageW(hEdit, WM_SETREDRAW, FALSE, 0);
 			g_origEditProc = (WNDPROC)SetWindowLongPtrW(hEdit, GWLP_WNDPROC, (LONG_PTR)EditSubclassProc);
 			SetTimer(hWnd, IDT_POLL_CAPTION, POLL_INTERVAL_MS, nullptr);
 		}
@@ -798,10 +779,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	case WM_COMMAND:
-		if (LOWORD(wParam) == IDC_SETTINGS_BUTTON) {
-			MessageBoxW(hWnd, L"Settings panel will open here", L"Settings", MB_OK);
-			return 0;
-		}
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	case WM_PAINT:
 	{

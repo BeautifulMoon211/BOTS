@@ -35,7 +35,6 @@ class SettingsDialog {
 public:
     static void Show(HWND hParent);
     static void Close();
-    static bool IsOpen();
     static AppSettings LoadSettings();
     static void SaveSettings(const AppSettings& settings);
 

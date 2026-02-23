@@ -4,8 +4,6 @@
 
 #define IDS_APP_TITLE			103
 
-#define IDR_MAINFRAME			128
-#define IDD_LIVECAPTION_DIALOG	102
 #define IDD_ABOUTBOX			103
 #define IDM_ABOUT				104
 #define IDM_EXIT				105
@@ -13,8 +11,6 @@
 #define IDI_SMALL				108
 #define IDC_LIVECAPTION			109
 #define IDC_CAPTION_EDIT		1000
-#define IDC_SETTINGS_BUTTON		1001
-#define IDC_MYICON				2
 #define IDT_POLL_CAPTION        1
 
 #define IDD_SETTINGS_DIALOG     200
@@ -30,17 +26,14 @@
 #define IDC_AUTOCOPY_ALT        210
 #define IDC_AUTOCOPY_WIN        211
 #define IDC_AUTOCOPY_KEY        212
-#define IDC_AUTOCOPY_APPLY      213
 #define IDC_AUTODELETE_CTRL     214
 #define IDC_AUTODELETE_SHIFT    215
 #define IDC_AUTODELETE_ALT      216
 #define IDC_AUTODELETE_WIN      217
 #define IDC_AUTODELETE_KEY      218
-#define IDC_AUTODELETE_APPLY    219
 #define IDC_TEXTSIZE_SLIDER     220
 #define IDC_TEXTSIZE_VALUE      221
 #define IDC_PREVIEW_TEXT        222
-#define IDC_TOGGLE_BUTTON       223
 #define IDC_TEXT_COLOR_PICKER   224
 #define IDC_BG_COLOR_PICKER     225
 #define IDC_SELECTED_BG_COLOR_PICKER 226
@@ -49,7 +42,6 @@
 #define POLL_INTERVAL_MS            400
 #define WM_APP_FIND_AND_COPY (WM_APP + 3)
 #define WM_APP_CLEAR_HISTORY (WM_APP + 4)
-#define WM_APP_TOGGLE_LIVECAPTION (WM_APP + 5)
 #define WM_APP_SETTINGS_CHANGED (WM_APP + 6)
 #define WM_APP_HIDE_TASKBAR     (WM_APP + 7)  // wParam=1 hide, wParam=0 show
 #define IDM_SETTINGS 9001
