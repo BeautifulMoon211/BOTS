@@ -15,6 +15,7 @@ static bool g_anchorSetByUser = false;
 static volatile long g_pasteInProgress = 0;
 static HWND g_hMainWnd = nullptr;
 static HHOOK g_hKbHook = nullptr;
+static HHOOK g_hMouseHook = nullptr;
 static bool g_userScrolledUp = false;
 static HotkeyConfig g_autoCopyHotkey   = { true, true, false, false, 'A' };
 static HotkeyConfig g_autoDeleteHotkey = { true, true, false, false, 'D' };
@@ -30,6 +31,7 @@ static bool CollectTextFromElement(IUIAutomation* pAutomation, IUIAutomationElem
 static bool IsUiChrome(const wchar_t* name);
 static void ApplyYellowHighlight(HWND hEdit);
 static LRESULT CALLBACK LowLevelKbHook(int nCode, WPARAM wParam, LPARAM lParam);
+static LRESULT CALLBACK LowLevelMouseHook(int nCode, WPARAM wParam, LPARAM lParam);
 static LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 static bool PasteViaClipboard(const std::wstring& text);
 static void DoFindAndCopyWork();
@@ -384,7 +386,7 @@ static void UpdateCaptionHistory(const std::wstring& currentText) {
 		pattern = g_previousCaption.substr(startPos, patternLen);
 		std::wstring patternLower = pattern;
 		std::transform(patternLower.begin(), patternLower.end(), patternLower.begin(), ::towlower);
-		size_t pos = currentLower.find(patternLower);
+		size_t pos = currentLower.rfind(patternLower);
 		if (pos != std::wstring::npos) {
 			newPart = currentText.substr(pos);
 			foundPattern = true;
@@ -460,6 +462,14 @@ static LRESULT CALLBACK LowLevelKbHook(int nCode, WPARAM wParam, LPARAM lParam) 
 		}
 	}
 	return CallNextHookEx(g_hKbHook, nCode, wParam, lParam);
+}
+
+static LRESULT CALLBACK LowLevelMouseHook(int nCode, WPARAM wParam, LPARAM lParam) {
+	if (nCode == HC_ACTION && g_hMainWnd && wParam == WM_MBUTTONDOWN) {
+		PostMessageW(g_hMainWnd, WM_APP_FIND_AND_COPY, 0, 0);
+		return 1;
+	}
+	return CallNextHookEx(g_hMouseHook, nCode, wParam, lParam);
 }
 
 static WNDPROC g_origEditProc = nullptr;
@@ -628,6 +638,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		g_hMainWnd = hWnd;
 		g_hKbHook = SetWindowsHookExW(WH_KEYBOARD_LL, LowLevelKbHook, nullptr, 0);
+		g_hMouseHook = SetWindowsHookExW(WH_MOUSE_LL, LowLevelMouseHook, nullptr, 0);
 		HMENU hSysMenu = GetSystemMenu(hWnd, FALSE);
 		if (hSysMenu) {
 			DeleteMenu(hSysMenu, SC_MAXIMIZE, MF_BYCOMMAND);
@@ -789,6 +800,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	break;
 	case WM_DESTROY:
 		if (g_hKbHook) { UnhookWindowsHookEx(g_hKbHook); g_hKbHook = nullptr; }
+		if (g_hMouseHook) { UnhookWindowsHookEx(g_hMouseHook); g_hMouseHook = nullptr; }
 		KillTimer(hWnd, IDT_POLL_CAPTION);
 		if (g_hEditBrush) { DeleteObject(g_hEditBrush); g_hEditBrush = nullptr; }
 		if (g_hCaptionFont) { DeleteObject(g_hCaptionFont); g_hCaptionFont = nullptr; }
