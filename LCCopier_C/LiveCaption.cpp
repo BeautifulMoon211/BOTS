@@ -34,7 +34,7 @@ static LRESULT CALLBACK LowLevelKbHook(int nCode, WPARAM wParam, LPARAM lParam);
 static LRESULT CALLBACK LowLevelMouseHook(int nCode, WPARAM wParam, LPARAM lParam);
 static LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 static bool PasteViaClipboard(const std::wstring& text);
-static void DoFindAndCopyWork();
+static void DoFindAndCopyWork(bool replaceAll = false);
 static void UpdateCaptionHistory(const std::wstring& currentText);
 // Helper: returns true for any Alt virtual-key code.
 // In a low-level keyboard hook, the physical Alt key reports as VK_LMENU (left)
@@ -277,12 +277,29 @@ static bool PasteViaClipboard(const std::wstring& text) {
 	}
 	return true;
 }
-static void DoFindAndCopyWork() {
+static void DoFindAndCopyWork(bool replaceAll) {
 	if (InterlockedCompareExchange(&g_pasteInProgress, 1, 0) != 0) return;
 	try {
 		if (g_captionHistory.empty()) {
 			InterlockedExchange(&g_pasteInProgress, 0);
 			return;
+		}
+
+		// When replaceAll (e.g. middle-button): select all in the focused control so paste replaces content
+		if (replaceAll) {
+			INPUT inputs[4] = {};
+			inputs[0].type = INPUT_KEYBOARD;
+			inputs[0].ki.wVk = VK_CONTROL;
+			inputs[1].type = INPUT_KEYBOARD;
+			inputs[1].ki.wVk = 'A';
+			inputs[2].type = INPUT_KEYBOARD;
+			inputs[2].ki.wVk = 'A';
+			inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
+			inputs[3].type = INPUT_KEYBOARD;
+			inputs[3].ki.wVk = VK_CONTROL;
+			inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
+			SendInput(4, inputs, sizeof(INPUT));
+			Sleep(30);
 		}
 
 		// Ensure anchor index is valid - if it's at or beyond the end, copy from the beginning
@@ -466,7 +483,8 @@ static LRESULT CALLBACK LowLevelKbHook(int nCode, WPARAM wParam, LPARAM lParam) 
 
 static LRESULT CALLBACK LowLevelMouseHook(int nCode, WPARAM wParam, LPARAM lParam) {
 	if (nCode == HC_ACTION && g_hMainWnd && wParam == WM_MBUTTONDOWN) {
-		PostMessageW(g_hMainWnd, WM_APP_FIND_AND_COPY, 0, 0);
+		// wParam=1: replace all text in target panel then paste (middle-button behavior)
+		PostMessageW(g_hMainWnd, WM_APP_FIND_AND_COPY, 1, 0);
 		return 1;
 	}
 	return CallNextHookEx(g_hMouseHook, nCode, wParam, lParam);
@@ -668,7 +686,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	}
 	break;
 	case WM_APP_FIND_AND_COPY:
-		DoFindAndCopyWork();
+		DoFindAndCopyWork(wParam != 0);
 		return 0;
 	case WM_APP_CLEAR_HISTORY:
 		DoClearHistory();
