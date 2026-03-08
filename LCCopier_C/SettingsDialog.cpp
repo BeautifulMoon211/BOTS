@@ -46,6 +46,7 @@ AppSettings SettingsDialog::GetDefaultSettings() {
     settings.darkMode = false;
     settings.setTop = true;
     settings.setInvisible = false;
+    settings.middleButtonPaste = true;
     settings.transparency = 100;
     settings.autoCopyHotkey = { true, true, false, false, 'A' };
     settings.autoDeleteHotkey = { true, true, false, false, 'D' };
@@ -66,6 +67,8 @@ void SettingsDialog::LoadFromRegistry(AppSettings& settings) {
             settings.setTop = (dwValue != 0);
         if (RegQueryValueExW(hKey, L"SetInvisible", nullptr, nullptr, (LPBYTE)&dwValue, &dwSize) == ERROR_SUCCESS)
             settings.setInvisible = (dwValue != 0);
+        if (RegQueryValueExW(hKey, L"MiddleButtonPaste", nullptr, nullptr, (LPBYTE)&dwValue, &dwSize) == ERROR_SUCCESS)
+            settings.middleButtonPaste = (dwValue != 0);
         if (RegQueryValueExW(hKey, L"Transparency", nullptr, nullptr, (LPBYTE)&dwValue, &dwSize) == ERROR_SUCCESS)
             settings.transparency = (int)dwValue;
         if (RegQueryValueExW(hKey, L"AutoCopyCtrl", nullptr, nullptr, (LPBYTE)&dwValue, &dwSize) == ERROR_SUCCESS)
@@ -110,6 +113,8 @@ void SettingsDialog::SaveToRegistry(const AppSettings& settings) {
         RegSetValueExW(hKey, L"SetTop", 0, REG_DWORD, (LPBYTE)&dwValue, sizeof(DWORD));
         dwValue = settings.setInvisible ? 1 : 0;
         RegSetValueExW(hKey, L"SetInvisible", 0, REG_DWORD, (LPBYTE)&dwValue, sizeof(DWORD));
+        dwValue = settings.middleButtonPaste ? 1 : 0;
+        RegSetValueExW(hKey, L"MiddleButtonPaste", 0, REG_DWORD, (LPBYTE)&dwValue, sizeof(DWORD));
         dwValue = settings.transparency;
         RegSetValueExW(hKey, L"Transparency", 0, REG_DWORD, (LPBYTE)&dwValue, sizeof(DWORD));
         dwValue = settings.autoCopyHotkey.ctrl ? 1 : 0;
@@ -325,6 +330,7 @@ void SettingsDialog::LoadSettingsToControls(HWND hDlg) {
     CheckDlgButton(hDlg, IDC_AUTODELETE_WIN, BST_UNCHECKED);
     wsprintfW(keyName, L"%c", (wchar_t)s_settings.autoDeleteHotkey.vkCode);
     SetDlgItemTextW(hDlg, IDC_AUTODELETE_KEY, keyName);
+    CheckDlgButton(hDlg, IDC_MIDDLE_BUTTON_PASTE, s_settings.middleButtonPaste ? BST_CHECKED : BST_UNCHECKED);
     SendDlgItemMessageW(hDlg, IDC_TEXTSIZE_SLIDER, TBM_SETPOS, TRUE, s_settings.textSize);
     SetDlgItemInt(hDlg, IDC_TEXTSIZE_VALUE, s_settings.textSize, FALSE);
     InvalidateRect(GetDlgItem(hDlg, IDC_TEXT_COLOR_PICKER), nullptr, TRUE);
@@ -349,6 +355,7 @@ void SettingsDialog::SaveControlsToSettings(HWND hDlg) {
     s_settings.autoDeleteHotkey.win = (IsDlgButtonChecked(hDlg, IDC_AUTODELETE_WIN) == BST_CHECKED);
     GetDlgItemTextW(hDlg, IDC_AUTODELETE_KEY, keyText, 32);
     if (keyText[0]) s_settings.autoDeleteHotkey.vkCode = (UINT)towupper(keyText[0]);
+    s_settings.middleButtonPaste = (IsDlgButtonChecked(hDlg, IDC_MIDDLE_BUTTON_PASTE) == BST_CHECKED);
     s_settings.textSize = (int)SendDlgItemMessageW(hDlg, IDC_TEXTSIZE_SLIDER, TBM_GETPOS, 0, 0);
 }
 

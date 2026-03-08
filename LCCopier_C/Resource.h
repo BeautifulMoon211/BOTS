@@ -12,6 +12,9 @@
 #define IDC_LIVECAPTION			109
 #define IDC_CAPTION_EDIT		1000
 #define IDT_POLL_CAPTION        1
+#define IDT_HOOK_KEEPALIVE      2    // timer: periodically verify hooks are still installed
+#define IDT_AUTO_START_LC       3    // one-shot timer: delay AutoStartLiveCaption() so hotkey modifiers are released
+
 
 #define IDD_SETTINGS_DIALOG     200
 #define IDC_CLOSE_SETTINGS      201
@@ -37,6 +40,7 @@
 #define IDC_TEXT_COLOR_PICKER   224
 #define IDC_BG_COLOR_PICKER     225
 #define IDC_SELECTED_BG_COLOR_PICKER 226
+#define IDC_MIDDLE_BUTTON_PASTE      227
 
 #define MAX_LOADSTRING              100
 #define POLL_INTERVAL_MS            400

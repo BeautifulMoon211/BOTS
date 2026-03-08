@@ -13,6 +13,7 @@ struct AppSettings {
     bool darkMode;
     bool setTop;
     bool setInvisible;
+    bool middleButtonPaste;
     int transparency;
     HotkeyConfig autoCopyHotkey;
     HotkeyConfig autoDeleteHotkey;
