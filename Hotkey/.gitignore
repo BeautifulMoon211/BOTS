@@ -1,0 +1,13 @@
+*.exe
+*.pdb
+*.ilk
+*.aps
+*.ncb
+*.opt
+*.user
+*.tlog
+*.chm
+*.dll
+/.vs
+/tmp
+/Release
