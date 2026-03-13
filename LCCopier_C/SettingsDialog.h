@@ -14,6 +14,7 @@ struct AppSettings {
     bool setTop;
     bool setInvisible;
     bool middleButtonPaste;
+    bool middleButtonReplaceAll;
     int transparency;
     HotkeyConfig autoCopyHotkey;
     HotkeyConfig autoDeleteHotkey;

@@ -17,6 +17,7 @@ static HWND g_hMainWnd = nullptr;
 static HHOOK g_hKbHook = nullptr;
 static HHOOK g_hMouseHook = nullptr;
 static bool g_middleButtonPaste = true;
+static bool g_middleButtonReplaceAll = true;
 static bool g_userScrolledUp = false;
 static HotkeyConfig g_autoCopyHotkey   = { true, true, false, false, 'A' };
 static HotkeyConfig g_autoDeleteHotkey = { true, true, false, false, 'D' };
@@ -484,8 +485,8 @@ static LRESULT CALLBACK LowLevelKbHook(int nCode, WPARAM wParam, LPARAM lParam) 
 
 static LRESULT CALLBACK LowLevelMouseHook(int nCode, WPARAM wParam, LPARAM lParam) {
 	if (nCode == HC_ACTION && g_hMainWnd && g_middleButtonPaste && wParam == WM_MBUTTONDOWN) {
-		// wParam=1: replace all text in target panel then paste (middle-button behavior)
-		PostMessageW(g_hMainWnd, WM_APP_FIND_AND_COPY, 1, 0);
+		// wParam=1: replace all then paste; wParam=0: paste only (no replace)
+		PostMessageW(g_hMainWnd, WM_APP_FIND_AND_COPY, g_middleButtonReplaceAll ? 1 : 0, 0);
 		return 1;
 	}
 	return CallNextHookEx(g_hMouseHook, nCode, wParam, lParam);
@@ -681,6 +682,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		g_autoCopyHotkey = settings.autoCopyHotkey;
 		g_autoDeleteHotkey = settings.autoDeleteHotkey;
 		g_middleButtonPaste = settings.middleButtonPaste;
+		g_middleButtonReplaceAll = settings.middleButtonReplaceAll;
 		// Initialize ITaskbarList for taskbar button control
 		CoCreateInstance(CLSID_TaskbarList, nullptr, CLSCTX_INPROC_SERVER,
 			IID_ITaskbarList, reinterpret_cast<void**>(&g_pTaskbarList));
@@ -756,6 +758,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		g_autoCopyHotkey = settings.autoCopyHotkey;
 		g_autoDeleteHotkey = settings.autoDeleteHotkey;
 		g_middleButtonPaste = settings.middleButtonPaste;
+		g_middleButtonReplaceAll = settings.middleButtonReplaceAll;
 		return 0;
 	}
 	case WM_SIZE:

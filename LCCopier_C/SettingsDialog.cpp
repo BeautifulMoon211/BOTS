@@ -47,6 +47,7 @@ AppSettings SettingsDialog::GetDefaultSettings() {
     settings.setTop = true;
     settings.setInvisible = false;
     settings.middleButtonPaste = true;
+    settings.middleButtonReplaceAll = true;
     settings.transparency = 100;
     settings.autoCopyHotkey = { true, true, false, false, 'A' };
     settings.autoDeleteHotkey = { true, true, false, false, 'D' };
@@ -69,6 +70,8 @@ void SettingsDialog::LoadFromRegistry(AppSettings& settings) {
             settings.setInvisible = (dwValue != 0);
         if (RegQueryValueExW(hKey, L"MiddleButtonPaste", nullptr, nullptr, (LPBYTE)&dwValue, &dwSize) == ERROR_SUCCESS)
             settings.middleButtonPaste = (dwValue != 0);
+        if (RegQueryValueExW(hKey, L"MiddleButtonReplaceAll", nullptr, nullptr, (LPBYTE)&dwValue, &dwSize) == ERROR_SUCCESS)
+            settings.middleButtonReplaceAll = (dwValue != 0);
         if (RegQueryValueExW(hKey, L"Transparency", nullptr, nullptr, (LPBYTE)&dwValue, &dwSize) == ERROR_SUCCESS)
             settings.transparency = (int)dwValue;
         if (RegQueryValueExW(hKey, L"AutoCopyCtrl", nullptr, nullptr, (LPBYTE)&dwValue, &dwSize) == ERROR_SUCCESS)
@@ -115,6 +118,8 @@ void SettingsDialog::SaveToRegistry(const AppSettings& settings) {
         RegSetValueExW(hKey, L"SetInvisible", 0, REG_DWORD, (LPBYTE)&dwValue, sizeof(DWORD));
         dwValue = settings.middleButtonPaste ? 1 : 0;
         RegSetValueExW(hKey, L"MiddleButtonPaste", 0, REG_DWORD, (LPBYTE)&dwValue, sizeof(DWORD));
+        dwValue = settings.middleButtonReplaceAll ? 1 : 0;
+        RegSetValueExW(hKey, L"MiddleButtonReplaceAll", 0, REG_DWORD, (LPBYTE)&dwValue, sizeof(DWORD));
         dwValue = settings.transparency;
         RegSetValueExW(hKey, L"Transparency", 0, REG_DWORD, (LPBYTE)&dwValue, sizeof(DWORD));
         dwValue = settings.autoCopyHotkey.ctrl ? 1 : 0;
@@ -253,6 +258,10 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND hDlg, UINT message, WPARAM wPar
             }
             return TRUE;
         }
+        if (LOWORD(wParam) == IDC_MIDDLE_BUTTON_PASTE && HIWORD(wParam) == BN_CLICKED) {
+            EnableWindow(GetDlgItem(hDlg, IDC_MIDDLE_BUTTON_REPLACE_ALL), IsDlgButtonChecked(hDlg, IDC_MIDDLE_BUTTON_PASTE) == BST_CHECKED);
+            return TRUE;
+        }
         break;
     case WM_DRAWITEM:
         {
@@ -331,6 +340,8 @@ void SettingsDialog::LoadSettingsToControls(HWND hDlg) {
     wsprintfW(keyName, L"%c", (wchar_t)s_settings.autoDeleteHotkey.vkCode);
     SetDlgItemTextW(hDlg, IDC_AUTODELETE_KEY, keyName);
     CheckDlgButton(hDlg, IDC_MIDDLE_BUTTON_PASTE, s_settings.middleButtonPaste ? BST_CHECKED : BST_UNCHECKED);
+    CheckDlgButton(hDlg, IDC_MIDDLE_BUTTON_REPLACE_ALL, s_settings.middleButtonReplaceAll ? BST_CHECKED : BST_UNCHECKED);
+    EnableWindow(GetDlgItem(hDlg, IDC_MIDDLE_BUTTON_REPLACE_ALL), IsDlgButtonChecked(hDlg, IDC_MIDDLE_BUTTON_PASTE) == BST_CHECKED);
     SendDlgItemMessageW(hDlg, IDC_TEXTSIZE_SLIDER, TBM_SETPOS, TRUE, s_settings.textSize);
     SetDlgItemInt(hDlg, IDC_TEXTSIZE_VALUE, s_settings.textSize, FALSE);
     InvalidateRect(GetDlgItem(hDlg, IDC_TEXT_COLOR_PICKER), nullptr, TRUE);
@@ -356,6 +367,7 @@ void SettingsDialog::SaveControlsToSettings(HWND hDlg) {
     GetDlgItemTextW(hDlg, IDC_AUTODELETE_KEY, keyText, 32);
     if (keyText[0]) s_settings.autoDeleteHotkey.vkCode = (UINT)towupper(keyText[0]);
     s_settings.middleButtonPaste = (IsDlgButtonChecked(hDlg, IDC_MIDDLE_BUTTON_PASTE) == BST_CHECKED);
+    s_settings.middleButtonReplaceAll = (IsDlgButtonChecked(hDlg, IDC_MIDDLE_BUTTON_REPLACE_ALL) == BST_CHECKED);
     s_settings.textSize = (int)SendDlgItemMessageW(hDlg, IDC_TEXTSIZE_SLIDER, TBM_GETPOS, 0, 0);
 }
 
