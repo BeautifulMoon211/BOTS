@@ -2287,7 +2287,86 @@ HWND GetFocusGlobal()
 	return 0;
 }
 
-void pasteText(TCHAR *param)
+static void pasteText(TCHAR *param);
+
+// Find next unescaped %| in string (%%| is escaped). Returns pointer to % or NULL.
+static TCHAR *findItemSep(TCHAR *s)
+{
+	TCHAR *e;
+	int i;
+	TCHAR *t;
+	e = _tcsstr(s, _T("%|"));
+	while(e){
+		for(i=0, t=e; t>=s && *t=='%'; i++, t--);
+		if(i&1) break;
+		e = _tcsstr(e+2, _T("%|"));
+	}
+	return e;
+}
+
+// Paste specific text: param "N%|text1%|text2%|..." pastes the Nth item (0-based) without showing the list.
+// If param does not match that format, pastes as normal (single text or show list).
+void pasteSpecificText(TCHAR *param)
+{
+	TCHAR *buf, *list, *s, *e, *t, *itemCopy;
+	int index, n;
+	size_t len = _tcslen(param) + 1;
+	buf = new TCHAR[len];
+	_tcscpy(buf, param);
+	e = findItemSep(buf);
+	if(!e || e == buf){
+		pasteText(buf);
+		delete[] buf;
+		return;
+	}
+	// Check prefix is digits only
+	for(t = buf; t < e; t++)
+		if(*t < _T('0') || *t > _T('9')){
+			pasteText(buf);
+			delete[] buf;
+			return;
+		}
+	*e = 0;
+	index = _ttoi(buf);
+	list = e + 2;
+	// Get the index-th item from list (pasteText modifies string, so we copy the selected item)
+	n = 0;
+	for(s = list;; s = e + 2){
+		e = findItemSep(s);
+		if(n == index){
+			if(e) *e = 0;
+			itemCopy = new TCHAR[_tcslen(s) + 1];
+			_tcscpy(itemCopy, s);
+			if(e) *e = _T('%');
+			pasteText(itemCopy);
+			delete[] itemCopy;
+			delete[] buf;
+			return;
+		}
+		if(!e) break;
+		*e = _T('%');
+		n++;
+	}
+	// Index out of range: paste first item
+	e = findItemSep(list);
+	if(e){
+		*e = 0;
+		itemCopy = new TCHAR[_tcslen(list) + 1];
+		_tcscpy(itemCopy, list);
+		*e = _T('%');
+		pasteText(itemCopy);
+		delete[] itemCopy;
+	}
+	else{
+		itemCopy = new TCHAR[_tcslen(list) + 1];
+		_tcscpy(itemCopy, list);
+		pasteText(itemCopy);
+		delete[] itemCopy;
+	}
+	delete[] buf;
+}
+
+static void pasteText(TCHAR *param)
 {
 	int i, n, sel;
 	TCHAR *s, *e, *t;
@@ -2855,6 +2934,9 @@ void command(int cmd, TCHAR *param, HotKey *hk)
 			break;
 		case 67: //paste text, date, time, user name, computer name
 			pasteText(param);
+			break;
+		case 120: //paste specific text (N%|item1%|item2... pastes Nth item without listbox)
+			pasteSpecificText(param);
 			break;
 		case 68: //next wallpaper
 			changeWallpaper(param, 1);

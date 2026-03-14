@@ -51,7 +51,8 @@ char *cmdNames[]={
 	/*116*/"Set gateway",
 	/*117*/"",  // Exclude from capture — private, default Ctrl+Alt+Shift+X, not in UI
 	/*118*/"Load 1.htk",
-	/*119*/""  // red border only with Always on top (case 10), not assignable
+	/*119*/"",  // red border only with Always on top (case 10), not assignable
+	/*120*/"Paste specific text"
 };
 
 BYTE cmdIcons[]={
@@ -66,7 +67,8 @@ BYTE cmdIcons[]={
 /*116*/27,
 /*117*/9,
 /*118*/10,
-/*119*/9
+/*119*/9,
+/*120*/3
 };
 
 TmainButton mainButton[]={
