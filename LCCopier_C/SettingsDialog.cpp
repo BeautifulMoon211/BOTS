@@ -396,6 +396,7 @@ void SettingsDialog::RestoreDefaults(HWND hDlg) {
 
 void SettingsDialog::UpdatePreviewText(HWND hDlg) {
     HWND hPreview = GetDlgItem(hDlg, IDC_PREVIEW_TEXT);
+    SendMessageW(hPreview, EM_SETBKGNDCOLOR, 0, (LPARAM)s_settings.bgColor);
     int textSize = (int)SendDlgItemMessageW(hDlg, IDC_TEXTSIZE_SLIDER, TBM_GETPOS, 0, 0);
     SetWindowTextW(hPreview, L"LiveCaption is a Windows desktop application that captures text from Windows' built-in Live Caption feature and displays it in a customizable window.\n "
         L"The app monitors the Live Caption accessibility feature using UI Automation COM API and extracts the real-time transcribed text. It provides enhanced functionality beyond the default Live Caption, including persistent caption history, customizable appearance (colors, text size, transparency), and keyboard shortcuts for copying and clearing text.\n"
@@ -433,8 +434,8 @@ ToggleButtonStyle SettingsDialog::GetToggleButtonStyle(int controlId) {
         style.textOn = L"Topmost";
         style.colorOff = RGB(240, 240, 240);
         style.colorOn = s_settings.selectedBgColor;
-        style.textColorOff = RGB(0, 0, 0);
-        style.textColorOn = RGB(0, 0, 0);
+        style.textColorOff = s_settings.textColor;
+        style.textColorOn = s_settings.textColor;
     }
     else if (controlId == IDC_SETINVISIBLE) {
         style.textOff = L"Visible";
